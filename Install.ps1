@@ -27,6 +27,13 @@ function Test-Package {
 }
 try {
     if (-not [Environment]::Is64BitOperatingSystem) { throw 'Windows x64 is required.' }
+    if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'payload.json'))) {
+        if (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'Bootstrap.ps1')) {
+            & (Join-Path $PSScriptRoot 'Bootstrap.ps1') -VerifyOnly:$VerifyOnly
+            return
+        }
+        throw 'Incomplete installation package. Extract the whole ZIP or download the repository again.'
+    }
     $manifest = Test-Package
     if ($VerifyOnly) { Write-Host 'Package verified; no system changes made.'; return }
     $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
