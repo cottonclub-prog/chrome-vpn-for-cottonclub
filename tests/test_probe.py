@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from runtime import check_connection
+from diagnostics import ConnectionCheckError
 
 
 class ConnectionProbeTests(unittest.TestCase):
@@ -20,7 +21,7 @@ class ConnectionProbeTests(unittest.TestCase):
     def test_probe_rejects_non_ip_response(self):
         with patch('requests.Session') as factory:
             factory.return_value.__enter__.return_value.get.return_value.text = '<html>login</html>'
-            with self.assertRaises(ValueError):
+            with self.assertRaises(ConnectionCheckError):
                 check_connection(17892)
 
 

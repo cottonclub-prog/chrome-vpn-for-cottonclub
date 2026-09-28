@@ -9,6 +9,7 @@ from host_config import EXTENSION_ID, EXTENSION_PORT
 from runtime import Core, DATA, check_connection
 from subscription import fetch_subscription, SubscriptionError
 from routing_policy import DEFAULT_MODE, MODES
+from diagnostics import ConnectionCheckError
 
 MAX_MESSAGE = 2 * 1024 * 1024
 
@@ -98,8 +99,14 @@ class Host:
                     self.core.start(self.nodes[index], mode)
                     try:
                         self.address = check_connection(EXTENSION_PORT)
-                    except Exception:
-                        raise RuntimeError('Не удалось проверить интернет через сервер. Попробуйте другой протокол.') from None
+                    except Exception as error:
+                        protocol = 'VLESS/Xray' if self.nodes[index]['outbound']['type'] == 'vless' else 'Hysteria 2/sing-box'
+                        reason = str(error) if isinstance(error, ConnectionCheckError) else 'Не удалось проверить интернет через сервер.'
+                        hint = self.core.connection_hint()
+                        if not isinstance(hint, str):
+                            hint = ''
+                        route = 'Россия напрямую' if mode == 'ru-direct' else 'Всё через VPN'
+                        raise RuntimeError(f'{protocol}, {route}: {reason} {hint}'.strip()) from None
                     self.connected = True
                     self.routing_mode = mode
                     self.selected = index

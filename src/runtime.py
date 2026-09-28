@@ -9,9 +9,11 @@ import subprocess
 import sys
 import tempfile
 import time
+import threading
 
 from subscription import make_config
 from xray_config import make_xray_config
+from diagnostics import CoreDiagnostics, ConnectionCheckError, check_error_message
 
 PORT = 17890
 CREATE_NO_WINDOW = 0x08000000 if os.name == 'nt' else 0
@@ -87,9 +89,12 @@ class Core:
         self.process = None
         self.job = None
         self.config_path = None
+        self.diagnostics = CoreDiagnostics()
+        self.log_thread = None
 
     def start(self, node, routing_mode='ru-direct'):
         self.stop()
+        self.diagnostics = CoreDiagnostics()
         use_xray = node['outbound']['type'] == 'vless' and self.explicit_binary is None
         if self.explicit_binary is None:
             self.binary = ROOT / ('bin/xray.exe' if use_xray else 'bin/sing-box.exe')
@@ -117,8 +122,11 @@ class Core:
             if os.name == 'nt':
                 self.job = KillOnCloseJob()
             self.process = subprocess.Popen([str(self.binary), 'run', '-c', str(self.config_path)],
-                                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                            stderr=subprocess.DEVNULL, creationflags=CREATE_NO_WINDOW)
+                                            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                            stderr=subprocess.STDOUT, creationflags=CREATE_NO_WINDOW)
+            self.log_thread = threading.Thread(target=self.diagnostics.consume,
+                                               args=(self.process.stdout,), daemon=True)
+            self.log_thread.start()
             if self.job:
                 self.job.assign(self.process)
             deadline = time.monotonic() + 10
@@ -144,6 +152,9 @@ class Core:
     def alive(self):
         return self.process is not None and self.process.poll() is None
 
+    def connection_hint(self):
+        return self.diagnostics.hint()
+
     def stop(self):
         if self.process is not None:
             if self.process.poll() is None:
@@ -154,6 +165,9 @@ class Core:
                     self.process.kill()
                     self.process.wait(timeout=4)
             self.process = None
+        if self.log_thread:
+            self.log_thread.join(timeout=1)
+            self.log_thread = None
         if self.job:
             self.job.close()
             self.job = None
@@ -167,8 +181,11 @@ def check_connection(port=PORT):
     import requests
     with requests.Session() as session:
         session.trust_env = False
-        response = session.get('https://api.ipify.org',
-                               proxies={'https': f'socks5h://127.0.0.1:{port}'}, timeout=(8, 15))
-        response.raise_for_status()
-        import ipaddress
-        return str(ipaddress.ip_address(response.text.strip()))
+        try:
+            response = session.get('https://api.ipify.org',
+                                   proxies={'https': f'socks5h://127.0.0.1:{port}'}, timeout=(8, 15))
+            response.raise_for_status()
+            import ipaddress
+            return str(ipaddress.ip_address(response.text.strip()))
+        except (requests.RequestException, ValueError) as error:
+            raise ConnectionCheckError(check_error_message(error)) from None
