@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chrome VPN for CottonClub</title><link rel="stylesheet" href="popup.css"></head>
+<body>
+  <header><div><span class="eyebrow">VPN FOR CHROME</span><h1>CottonClub</h1></div><span id="badge">Отключён</span></header>
+  <main>
+    <div class="card"><label for="subscription">ПОДПИСКА</label>
+    <div class="row"><input id="subscription" type="password" autocomplete="off" spellcheck="false" placeholder="https://…"><button id="paste" class="secondary">Вставить</button></div>
+    <div class="subscription-actions"><label class="checkbox"><input id="show" type="checkbox">Показать ссылку</label>
+    <button id="load" class="secondary">Загрузить</button></div></div>
+    <div class="card"><label for="server">СЕРВЕР</label><select id="server"><option value="">Сначала загрузите подписку</option></select>
+    <label for="routing">МАРШРУТИЗАЦИЯ</label><select id="routing"><option value="ru-direct">Россия и локальная сеть — напрямую</option><option value="all">Всё через VPN</option></select></div>
+    <div class="connection-actions">
+    <button id="connect" class="primary wide" disabled>Подключить</button>
+    <button id="disconnect" class="secondary wide" disabled>Отключить VPN</button>
+    </div>
+    <section aria-live="polite"><p id="status">Подключаю помощник…</p><p id="ip"></p></section>
+    <p class="hint">Действует в этом профиле Chrome. При потере помощника доступ блокируется до переподключения или отключения VPN.</p>
+    <a href="help.html" target="_blank">Установка и помощь</a>
+  </main>
+  <script src="popup.js"></script>
+</body></html>

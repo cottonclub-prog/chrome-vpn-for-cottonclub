@@ -1,0 +1,25 @@
+src/.venv/
+src/bin/
+src/build/
+src/dist/
+dist/
+build/
+
+# Python and generated binaries
+.venv/
+__pycache__/
+*.py[cod]
+*.spec
+*.exe
+*.dll
+*.pyd
+*.zip
+*.log
+
+# Local credentials and user state
+.env
+.env.*
+device-id.txt
+client-config.json
+routing-preferences.json
+core-*.json

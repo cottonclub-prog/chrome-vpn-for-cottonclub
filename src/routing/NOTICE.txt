@@ -1,0 +1,5 @@
+Domain dataset: https://github.com/SagerNet/sing-geosite (derived from v2fly/domain-list-community).
+IP dataset: https://github.com/SagerNet/sing-geoip (see upstream data attribution).
+Pinned source revisions and SHA-256 hashes are in SOURCES.json.
+Private/local ranges are explicitly listed in prepare_routing.py.
+These geo lists are classifications, not guarantees of site location.
