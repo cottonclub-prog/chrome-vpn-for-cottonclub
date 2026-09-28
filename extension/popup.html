@@ -17,6 +17,13 @@
     <section aria-live="polite"><p id="status">Подключаю помощник…</p><p id="ip"></p></section>
     <p class="hint">Действует в этом профиле Chrome. При потере помощника доступ блокируется до переподключения или отключения VPN.</p>
     <a href="help.html" target="_blank">Установка и помощь</a>
+    <div class="card updates">
+      <p id="version"></p>
+      <button id="check-update" class="secondary wide">Проверить обновления</button>
+      <button id="install-update" class="primary wide" hidden>Обновить — VPN отключится</button>
+      <button id="finish-update" class="secondary wide" hidden>Перезагрузить расширение</button>
+      <p class="hint">При обновлении подтвердите запрос Windows. Перезагружайте расширение только после завершения или отмены установщика.</p>
+    </div>
   </main>
   <script src="popup.js"></script>
 </body></html>

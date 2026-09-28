@@ -1,14 +1,27 @@
-param([switch]$VerifyOnly)
+param([switch]$VerifyOnly, [switch]$Latest)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
 # Source ZIPs contain this bootstrap; built packages contain payload.json instead.
 # Download and verify before requesting elevation. No Python or build tools needed.
-$metadata = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'release.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+$asset = 'Chrome-vpn-for-cottonclub-Windows-x64.zip'
+if ($Latest) {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/cottonclub-prog/chrome-vpn-for-cottonclub/releases/latest' -Headers @{ 'User-Agent'='CottonClub-Updater' } -TimeoutSec 30
+    if ($release.draft -or $release.prerelease -or $release.tag_name -notmatch '^v\d+\.\d+\.\d+$') { throw 'Invalid stable release.' }
+    $version = $release.tag_name.Substring(1)
+    $items = @($release.assets | Where-Object { $_.name -eq $asset })
+    $expectedUrl = "https://github.com/cottonclub-prog/chrome-vpn-for-cottonclub/releases/download/v$version/$asset"
+    if ($items.Count -ne 1 -or $items[0].browser_download_url -ne $expectedUrl -or $items[0].digest -notmatch '^sha256:[0-9a-fA-F]{64}$') { throw 'Verified official update package is missing.' }
+    $installed = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'extension/manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ([version]$version -le [version]$installed.version) { Write-Host 'The latest version is already installed.'; return }
+    $metadata = [pscustomobject]@{ version=$version; sha256=$items[0].digest.Substring(7) }
+} else {
+    $metadata = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'release.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+}
 if ($metadata.version -notmatch '^\d+\.\d+\.\d+$' -or $metadata.sha256 -notmatch '^[0-9a-fA-F]{64}$') {
     throw 'Invalid release metadata. Download the repository again.'
 }
-$asset = 'Chrome-vpn-for-cottonclub-Windows-x64.zip'
 $url = "https://github.com/cottonclub-prog/chrome-vpn-for-cottonclub/releases/download/v$($metadata.version)/$asset"
 $tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')
 $work = [IO.Path]::GetFullPath((Join-Path $tempRoot ('CottonClubInstall-' + [guid]::NewGuid().ToString('N'))))

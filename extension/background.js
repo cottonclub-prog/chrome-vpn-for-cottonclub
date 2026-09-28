@@ -8,6 +8,9 @@ let serial = Promise.resolve();
 let state = {mode: 'off', busy: false, nodes: [], selected: 0, ip: '', message: '', helper: false, routingMode: 'ru-direct'};
 let desired = false;
 let savedNode = null;
+state.currentVersion = chrome.runtime.getManifest().version;
+state.update = null;
+state.updating = false;
 
 function restoreSelection() {
   const match = state.nodes.find(node => node.name === savedNode?.name && node.protocol === savedNode?.protocol);
@@ -43,6 +46,9 @@ const ready = (async () => {
     }
   }
   await chrome.storage.session.setAccessLevel({accessLevel: 'TRUSTED_CONTEXTS'});
+  const updateProgress = await chrome.storage.session.get('updatePending');
+  state.updating = updateProgress.updatePending === true;
+  if (state.updating) state.message = 'Дождитесь завершения установщика, затем нажмите «Перезагрузить расширение».';
   await badge();
 })();
 
@@ -64,6 +70,7 @@ function absorb(data) {
 function nativeLost(message) {
   state.helper = false;
   state.ip = '';
+  if (state.updating) return;
   if (desired) {
     if (state.mode !== 'error') state.mode = 'blocked';
     state.message = message || 'Помощник остановлен. Доступ заблокирован до переподключения или отключения VPN.';
@@ -168,7 +175,42 @@ async function execute(command, message) {
   await ready;
   state.busy = true;
   try {
-    if (command === 'refresh') {
+    if (command === 'finishUpdate') {
+      if (!state.updating) throw new Error('Обновление не запущено.');
+      await chrome.storage.session.remove('updatePending');
+      setTimeout(() => chrome.runtime.reload(), 200);
+    } else if (state.updating) {
+      // Opening the popup must not restart the helper while the installer runs.
+      state.message = 'Дождитесь завершения установщика, затем нажмите «Перезагрузить расширение».';
+    } else if (command === 'checkUpdate') {
+      state.update = null;
+      state.update = await rpc('checkUpdate', {version: state.currentVersion});
+      state.message = state.update.available ? `Доступна версия ${state.update.version}.` : 'Установлена актуальная версия.';
+    } else if (command === 'installUpdate') {
+      if (!state.update?.available) throw new Error('Сначала проверьте наличие обновления.');
+      await releaseSettings();
+      desired = false;
+      await chrome.storage.local.set({vpnEnabled: false});
+      state.mode = 'off';
+      state.ip = '';
+      await rpc('disconnect');
+      // Persist before launching to survive a service-worker restart.
+      await chrome.storage.session.set({updatePending: true});
+      state.updating = true;
+      try {
+        const result = await rpc('installUpdate');
+        if (!result.started) throw new Error('Установщик не запустился.');
+      } catch (error) {
+        state.updating = false;
+        await chrome.storage.session.remove('updatePending');
+        throw error;
+      }
+      const port = native;
+      native = null;
+      if (port) port.disconnect();
+      state.helper = false;
+      state.message = 'VPN отключён. Подтвердите установку Windows. После завершения нажмите «Перезагрузить расширение».';
+    } else if (command === 'refresh') {
       let result = await rpc('status');
       if (!result.connected && !result.nodes?.length) {
         const saved = await chrome.storage.local.get('subscription');
@@ -248,7 +290,7 @@ async function execute(command, message) {
       throw new Error('Неизвестная команда.');
     }
   } catch (error) {
-    if (desired && state.mode !== 'error') state.mode = 'blocked';
+    if (desired && state.mode !== 'error' && command !== 'checkUpdate') state.mode = 'blocked';
     state.message = error.message || 'Ошибка подключения.';
   } finally {
     state.busy = false;

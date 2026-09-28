@@ -10,6 +10,7 @@ from runtime import Core, DATA, check_connection
 from subscription import fetch_subscription, SubscriptionError
 from routing_policy import DEFAULT_MODE, MODES
 from diagnostics import ConnectionCheckError
+from updates import check_update, launch_update
 
 MAX_MESSAGE = 2 * 1024 * 1024
 
@@ -72,6 +73,12 @@ class Host:
     def dispatch(self, request):
         action = request.get('action')
         with self.lock:
+            if action == 'checkUpdate':
+                return check_update(request.get('version'))
+            if action == 'installUpdate':
+                if self.connected:
+                    raise RuntimeError('Отключите VPN перед обновлением.')
+                return launch_update()
             if action == 'status':
                 return self.status()
             if action == 'load':

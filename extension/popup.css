@@ -42,3 +42,6 @@ a:hover { text-decoration:underline; }
 ::-webkit-scrollbar { width:7px; }
 ::-webkit-scrollbar-thumb { background:#424f60; border:2px solid #1d2531; border-radius:6px; }
 ::-webkit-scrollbar-track { background:transparent; }
+button[hidden] { display: none; }
+.updates { margin-top: 14px; }
+.updates button { margin-top: 8px; width: 100%; }

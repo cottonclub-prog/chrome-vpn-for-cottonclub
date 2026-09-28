@@ -57,7 +57,7 @@ try {
     Copy-Item (Join-Path $PSScriptRoot 'host') $release -Recurse
     # Preserve the unpacked extension path across updates.
     Copy-Item (Join-Path $PSScriptRoot 'extension') $base -Recurse -Force
-    foreach ($file in @('Launch.vbs','Launch.ps1','Uninstall.cmd','Uninstall.ps1','README.md')) { Copy-Item (Join-Path $PSScriptRoot $file) $base -Force }
+    foreach ($file in @('Launch.vbs','Launch.ps1','Uninstall.cmd','Uninstall.ps1','Bootstrap.ps1','Update.ps1','README.md')) { Copy-Item (Join-Path $PSScriptRoot $file) $base -Force }
     $id = 'hooimhadihhgfkhidbmjoaojfljafnaf'
     $hostPath = Join-Path $release 'com.projectzxc.admin.json'
     $hostJson = @{name='com.projectzxc.admin'; description='Chrome VPN for CottonClub'; path=(Join-Path $release 'host/ZXC-AdminHost.exe'); type='stdio'; allowed_origins=@("chrome-extension://$id/")} | ConvertTo-Json

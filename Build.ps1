@@ -26,7 +26,7 @@ try {
     Copy-Item (Join-Path $output 'ZXC-AdminHost') (Join-Path $package 'host') -Recurse
     Copy-Item bin,routing (Join-Path $package 'host') -Recurse
     Copy-Item (Join-Path $PSScriptRoot 'extension') $package -Recurse
-    foreach ($file in @('Install.cmd','Install.ps1','Launch.vbs','Launch.ps1','Uninstall.cmd','Uninstall.ps1','README.md')) {
+    foreach ($file in @('Install.cmd','Install.ps1','Launch.vbs','Launch.ps1','Uninstall.cmd','Uninstall.ps1','Bootstrap.ps1','Update.ps1','README.md')) {
         Copy-Item (Join-Path $PSScriptRoot $file) $package
     }
     $hashes = @(Get-ChildItem $package -File -Recurse | ForEach-Object {

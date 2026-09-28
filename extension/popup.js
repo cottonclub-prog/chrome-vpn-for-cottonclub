@@ -31,7 +31,7 @@ function render(state) {
       el('server').append(option);
     } else el('server').value = String(state.selected || 0);
   }
-  const busy = state.busy || pending;
+  const busy = state.busy || pending || state.updating;
   const on = state.mode === 'on';
   if (!pending && state.selected !== undefined) update('server', 'value', String(state.selected));
   for (const id of ['subscription', 'paste', 'load', 'server', 'routing']) update(id, 'disabled', busy || on);
@@ -42,11 +42,17 @@ function render(state) {
   update('badge', 'className', state.mode);
   update('status', 'textContent', state.message || 'Загрузите подписку и выберите сервер.');
   update('ip', 'textContent', on && state.ip ? `IP VPN: ${state.ip}` : '');
+  update('version', 'textContent', `Версия ${state.currentVersion || ''}${state.update?.available ? ` · доступна ${state.update.version}` : ''}`);
+  update('check-update', 'disabled', busy);
+  update('install-update', 'hidden', !state.update?.available || state.updating === true);
+  update('install-update', 'disabled', busy);
+  update('finish-update', 'hidden', state.updating !== true);
+  update('finish-update', 'disabled', state.busy || pending);
 }
 
 async function command(command, fields = {}) {
   pending = true;
-  for (const id of ['connect', 'disconnect', 'load', 'paste']) el(id).disabled = true;
+  for (const id of ['connect', 'disconnect', 'load', 'paste', 'check-update', 'install-update', 'finish-update']) el(id).disabled = true;
   try {
     const state = await chrome.runtime.sendMessage({command, ...fields});
     pending = false;
@@ -68,5 +74,8 @@ el('connect').addEventListener('click', () => command('connect', {index: Number(
 el('disconnect').addEventListener('click', () => command('disconnect'));
 el('routing').addEventListener('change', () => command('routing', {mode: el('routing').value}));
 el('server').addEventListener('change', () => command('select', {index: Number(el('server').value)}));
+el('check-update').addEventListener('click', () => command('checkUpdate'));
+el('install-update').addEventListener('click', () => command('installUpdate'));
+el('finish-update').addEventListener('click', () => command('finishUpdate'));
 chrome.runtime.sendMessage({command: 'getState'}).then(render).then(() => command('refresh'));
 setInterval(() => chrome.runtime.sendMessage({command: 'getState'}).then(render).catch(() => {}), 750);
