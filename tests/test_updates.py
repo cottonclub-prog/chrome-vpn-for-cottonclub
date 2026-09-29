@@ -29,6 +29,15 @@ class UpdateTests(unittest.TestCase):
         self.assertFalse(parse_release(release('1.0.2'), '1.0.3')['available'])
         self.assertFalse(parse_release(release('1.0.3'), '1.0.3')['available'])
 
+    def test_previous_system_wide_singbox_package_is_rejected(self):
+        old = release('9.0.0')
+        old_asset = 'Chrome-vpn-for-cottonclub-sing-box-Windows-x64.zip'
+        old['assets'][0]['name'] = old_asset
+        old['assets'][0]['browser_download_url'] = (
+            f'https://github.com/{REPOSITORY}/releases/download/v9.0.0/{old_asset}')
+        with self.assertRaises(ValueError):
+            parse_release(old, '1.2.0')
+
     def test_rejects_foreign_asset_missing_digest_and_prerelease(self):
         wrong_url = release()
         wrong_url['assets'][0]['browser_download_url'] = 'https://example.org/payload.zip'
@@ -54,14 +63,23 @@ class UpdateTests(unittest.TestCase):
                 launch_update()
             popen.assert_not_called()
 
+    def test_helper_outside_user_install_cannot_start_updater(self):
+        with tempfile.TemporaryDirectory() as directory:
+            executable = Path(directory) / 'other/releases/test/host/CottonClub-Host.exe'
+            with patch('updates.sys.frozen', True, create=True), patch('updates.sys.executable', str(executable)), \
+                    patch.dict('os.environ', {'LOCALAPPDATA': directory}), patch('updates.subprocess.Popen') as popen:
+                with self.assertRaises(RuntimeError):
+                    launch_update()
+                popen.assert_not_called()
+
     def test_installed_helper_launches_only_fixed_updater_and_passes_its_pid(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory) / 'Chrome VPN for CottonClub'
-            executable = base / 'releases/test/host/ZXC-AdminHost.exe'
+            executable = base / 'releases/test/host/CottonClub-Host.exe'
             executable.parent.mkdir(parents=True)
             (base / 'Update.ps1').write_text('# test', encoding='utf-8')
             with patch('updates.sys.frozen', True, create=True), patch('updates.sys.executable', str(executable)), \
-                    patch.dict('os.environ', {'ProgramFiles': directory}), patch('updates.os.getpid', return_value=123), \
+                    patch.dict('os.environ', {'LOCALAPPDATA': directory}), patch('updates.os.getpid', return_value=123), \
                     patch('updates.subprocess.Popen') as popen:
                 self.assertTrue(launch_update()['started'])
                 arguments = popen.call_args.args[0]

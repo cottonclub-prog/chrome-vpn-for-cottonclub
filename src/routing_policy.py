@@ -1,4 +1,4 @@
-"""Split-tunnel rules shared by VLESS and Hysteria 2 on sing-box."""
+"""Split-tunnel rules for Hysteria 2 on sing-box."""
 import copy
 import hashlib
 import json

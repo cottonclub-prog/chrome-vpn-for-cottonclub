@@ -1,5 +1,5 @@
 /* All connection control lives here, never in a website/content script. */
-const HOST = 'com.projectzxc.admin';
+const HOST = 'com.cottonclub.hysteria2';
 const PORT = 17892;
 let native = null;
 let nextId = 1;
@@ -209,7 +209,7 @@ async function execute(command, message) {
       native = null;
       if (port) port.disconnect();
       state.helper = false;
-      state.message = 'VPN отключён. Подтвердите установку Windows. После завершения нажмите «Перезагрузить расширение».';
+      state.message = 'VPN отключён. Дождитесь завершения установки. После завершения нажмите «Перезагрузить расширение».';
     } else if (command === 'refresh') {
       let result = await rpc('status');
       if (!result.connected && !result.nodes?.length) {

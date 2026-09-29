@@ -3,8 +3,8 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
 # Source ZIPs contain this bootstrap; built packages contain payload.json instead.
-# Download and verify before requesting elevation. No Python or build tools needed.
-$asset = 'Chrome-vpn-for-cottonclub-sing-box-Windows-x64.zip'
+# Download and verify the per-user package. No elevation or build tools needed.
+$asset = 'Chrome-vpn-for-cottonclub-hysteria2-user-Windows-x64.zip'
 if ($Latest) {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/cottonclub-prog/chrome-vpn-for-cottonclub/releases/latest' -Headers @{ 'User-Agent'='CottonClub-Updater' } -TimeoutSec 30
@@ -20,7 +20,7 @@ if ($Latest) {
     $metadata = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'release.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 }
 if (-not $metadata.sha256) {
-    throw 'The sing-box package has not been published yet. Run Build.ps1, extract dist/Chrome-vpn-for-cottonclub-sing-box-Windows-x64.zip and run Install.cmd inside it.'
+    throw 'The sing-box package has not been published yet. Run Build.ps1, extract dist/Chrome-vpn-for-cottonclub-hysteria2-user-Windows-x64.zip and run Install.cmd inside it.'
 }
 if ($metadata.version -notmatch '^\d+\.\d+\.\d+$' -or $metadata.sha256 -notmatch '^[0-9a-fA-F]{64}$') {
     throw 'Invalid release metadata. Download the repository again.'
@@ -61,12 +61,9 @@ try {
     if ($manifest.version -ne $metadata.version) { throw 'Release version mismatch. Nothing was installed.' }
     Write-Host 'Package verified. Preparing installation...'
     $installer = Join-Path $package 'Install.ps1'
-    if ($VerifyOnly) {
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installer -VerifyOnly
-    } else {
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installer
-    }
-    if ($LASTEXITCODE -ne 0) { throw "Installer failed (exit code $LASTEXITCODE)." }
+    # Run in this PowerShell process; installation never elevates.
+    & $installer -VerifyOnly:$VerifyOnly
+
 } finally {
     # Only remove the unique directory created by this invocation, never a link.
     $resolved = [IO.Path]::GetFullPath($work)

@@ -17,11 +17,11 @@ try {
     }
     $stamp = [guid]::NewGuid().ToString('N')
     $output = Join-Path $PSScriptRoot "build/$stamp"
-    & ./.venv/Scripts/python.exe -m PyInstaller --noconfirm --clean --onedir --console --hide-console hide-early --hidden-import socks --name ZXC-AdminHost --distpath $output native_host.py
+    & ./.venv/Scripts/python.exe -m PyInstaller --noconfirm --clean --onedir --console --hide-console hide-early --hidden-import socks --name CottonClub-Host --distpath $output native_host.py
     if ($LASTEXITCODE) { throw 'Native host build failed' }
     $package = Join-Path $PSScriptRoot "dist/$stamp/Chrome-vpn-for-cottonclub"
     New-Item -ItemType Directory -Path $package -Force | Out-Null
-    Copy-Item (Join-Path $output 'ZXC-AdminHost') (Join-Path $package 'host') -Recurse
+    Copy-Item (Join-Path $output 'CottonClub-Host') (Join-Path $package 'host') -Recurse
     Copy-Item routing (Join-Path $package 'host') -Recurse
     $coreDirectory = Join-Path $package 'host/bin'
     New-Item -ItemType Directory -Path $coreDirectory -Force | Out-Null
@@ -35,7 +35,7 @@ try {
         @{ path = $_.FullName.Substring($package.Length + 1); sha256 = (Get-FileHash $_.FullName -Algorithm SHA256).Hash }
     })
     $hashes | ConvertTo-Json | Set-Content (Join-Path $package 'payload.json') -Encoding UTF8
-    $archive = Join-Path $PSScriptRoot 'dist/Chrome-vpn-for-cottonclub-sing-box-Windows-x64.zip'
+    $archive = Join-Path $PSScriptRoot 'dist/Chrome-vpn-for-cottonclub-hysteria2-user-Windows-x64.zip'
     Compress-Archive -Path $package -DestinationPath $archive -Force
     $manifest = Get-Content (Join-Path $package 'extension/manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     @{ version = $manifest.version; sha256 = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower() } |

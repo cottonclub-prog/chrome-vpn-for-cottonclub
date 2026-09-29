@@ -21,24 +21,19 @@ HY2 = 'hysteria2://user%3Apass@127.0.0.1:443?sni=localhost#HY2'
 
 class SubscriptionTests(unittest.TestCase):
     def test_base64_and_unicode(self):
-        text = VLESS + '\n' + HY2.replace('#HY2', '#%D0%A2%D0%B5%D1%81%D1%82')
+        text = HY2 + '\n' + HY2.replace('#HY2', '#%D0%A2%D0%B5%D1%81%D1%82')
         nodes, skipped = parse_subscription(base64.b64encode(text.encode()).decode().rstrip('='))
         self.assertEqual(len(nodes), 2)
         self.assertEqual(nodes[1]['name'], 'Тест')
         self.assertEqual(nodes[1]['outbound']['password'], 'user:pass')
         self.assertEqual(skipped, [])
 
-    def test_reality(self):
-        node = parse_link(f'vless://{UUID}@example.com:443?security=reality&pbk=key&sid=abcd&fp=chrome&flow=xtls-rprx-vision&sni=example.org')
-        self.assertEqual(node['outbound']['tls']['reality']['public_key'], 'key')
-        self.assertEqual(node['outbound']['flow'], 'xtls-rprx-vision')
+    def test_alias_tls_and_domain_resolver(self):
+        node = parse_link('hy2://secret@example.org:8443?peer=example.net&alpn=h3#Name')
+        self.assertEqual(node['outbound']['tls'], {
+            'enabled': True, 'server_name': 'example.net', 'alpn': ['h3']})
         self.assertEqual(make_config(node, 12345)['outbounds'][0]['domain_resolver'], 'bootstrap')
-
-    def test_ws_and_grpc(self):
-        ws = parse_link(VLESS.replace('#Test', '&type=ws&path=%2Fws&host=example.com'))
-        self.assertEqual(ws['outbound']['transport']['path'], '/ws')
-        grpc = parse_link(VLESS.replace('#Test', '&type=grpc&serviceName=svc'))
-        self.assertEqual(grpc['outbound']['transport']['service_name'], 'svc')
+        self.assertEqual(node['outbound']['password'], 'secret')
 
     def test_ipv6_hysteria_obfs(self):
         node = parse_link('hy2://secret@[::1]:8443?obfs=salamander&obfs-password=abc')
@@ -53,26 +48,30 @@ class SubscriptionTests(unittest.TestCase):
             with self.subTest(ports=ports), self.assertRaises(SubscriptionError):
                 parse_link(HY2.replace('#HY2', '&mport=' + ports))
 
-    def test_reject_unsupported_and_invalid(self):
-        for link in (VLESS.replace('#Test', '&type=xhttp'), HY2 + '&insecure=1',
-                     VLESS.replace(UUID, 'invalid'), 'https://example.com/'):
-            # Put insecure in query, not fragment.
-            link = link.replace('#HY2&insecure=1', '&insecure=1')
-            with self.subTest(link=link), self.assertRaises(ValueError):
+    def test_reject_other_protocols_and_insecure_tls(self):
+        for link in (VLESS, 'hysteria://secret@localhost', 'ss://unsupported',
+                     'https://example.com/', HY2.replace('#HY2', '&insecure=1'),
+                     HY2.replace('#HY2', '&security=none'), HY2.replace('#HY2', '&pinSHA256=abc'),
+                     HY2.replace('#HY2', '&obfs=salamander')):
+            with self.subTest(link=link), self.assertRaises(SubscriptionError):
                 parse_link(link)
 
-    def test_partial_import(self):
-        nodes, errors = parse_subscription(VLESS + '\nss://unsupported\n' + HY2)
-        self.assertEqual(len(nodes), 2)
-        self.assertEqual(errors, [2])
-        nodes, errors = parse_subscription('ss://unsupported\n' + VLESS)
-        self.assertEqual(len(nodes), 1)
-        self.assertEqual(errors, [1])
+    def test_mixed_subscription_keeps_only_hysteria2(self):
+        for text in (VLESS + '\n' + HY2 + '\nss://unsupported',
+                     base64.b64encode((VLESS + '\n' + HY2 + '\nss://unsupported').encode()).decode()):
+            nodes, errors = parse_subscription(text)
+            self.assertEqual([n['outbound']['type'] for n in nodes], ['hysteria2'])
+            self.assertEqual(errors, [1, 3])
+        with self.assertRaisesRegex(SubscriptionError, 'hysteria2://'):
+            parse_subscription(VLESS)
+
+    def test_config_rejects_non_hysteria_even_without_parser(self):
+        with self.assertRaises(SubscriptionError):
+            make_config({'outbound': {'type': 'vless', 'server': 'localhost'}}, 17890)
 
     def test_zero_port_is_rejected(self):
-        for link in (VLESS, HY2):
-            with self.subTest(link=link), self.assertRaises(SubscriptionError):
-                parse_link(link.replace(':443', ':0'))
+        with self.assertRaises(SubscriptionError):
+            parse_link(HY2.replace(':443', ':0'))
 
     def test_html_json_rejected(self):
         for value in ('<html>login</html>', '{"outbounds": []}', ''):
@@ -80,14 +79,22 @@ class SubscriptionTests(unittest.TestCase):
                 parse_subscription(value)
 
     def test_no_direct_fallback(self):
-        config = make_config(parse_link(VLESS), 17890, 'all')
+        config = make_config(parse_link(HY2), 17890, 'all')
         self.assertEqual(config['route']['final'], 'vpn')
-        self.assertEqual([o['type'] for o in config['outbounds']], ['vless'])
+        self.assertEqual([o['type'] for o in config['outbounds']], ['hysteria2'])
         self.assertEqual(config['inbounds'][0]['listen'], '127.0.0.1')
         flags = chrome_args('chrome.exe')
         self.assertIn('--proxy-bypass-list=<-loopback>', flags)
         self.assertIn('--force-webrtc-ip-handling-policy=disable_non_proxied_udp', flags)
-        self.assertTrue(any(s.startswith('--user-data-dir=') for s in flags))
+
+    def test_split_routes_and_final_vpn(self):
+        config = make_config(parse_link(HY2), 17890, 'ru-direct')
+        self.assertEqual(config['route']['final'], 'vpn')
+        self.assertEqual([o['type'] for o in config['outbounds']], ['hysteria2', 'direct'])
+        self.assertEqual(config['dns']['servers'][1]['detour'], 'vpn')
+        self.assertEqual(config['route']['rules'][0]['outbound'], 'direct')
+        with self.assertRaises(ValueError):
+            make_config(parse_link(HY2), 17890, 'unknown')
 
 
 def unused_port():
@@ -113,18 +120,7 @@ class CoreTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:
             path = Path(directory) / 'check.json'
             binary = ROOT / 'bin/sing-box.exe'
-            generated = subprocess.run([str(binary), 'generate', 'reality-keypair'],
-                                       capture_output=True, check=True,
-                                       creationflags=CREATE_NO_WINDOW).stdout.decode()
-            public_key = next(line.split(':', 1)[1].strip() for line in generated.splitlines()
-                              if line.startswith('PublicKey:'))
-            links = (VLESS, HY2, VLESS.replace('127.0.0.1', 'example.com'),
-                     VLESS.replace('#Test', '&type=ws&path=%2Fws&host=example.com'),
-                     VLESS.replace('#Test', '&type=grpc&serviceName=test'),
-                     VLESS.replace('security=none#Test', 'security=tls&sni=example.com'),
-                     VLESS.replace('security=none#Test',
-                                   f'security=reality&pbk={public_key}&sid=abcd&fp=chrome'
-                                   '&flow=xtls-rprx-vision&sni=example.com'),
+            links = (HY2, HY2.replace('127.0.0.1', 'example.com'),
                      HY2.replace('#HY2', '&obfs=salamander&obfs-password=secret'),
                      HY2.replace('#HY2', '&mport=443,8443-8450'))
             for link in links:
@@ -134,9 +130,6 @@ class CoreTests(unittest.TestCase):
                         result = subprocess.run([str(binary), 'check', '-c', str(path)],
                                                 capture_output=True, creationflags=CREATE_NO_WINDOW)
                         self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
-
-    def test_local_vless_end_to_end_and_stop(self):
-        self.exercise_protocol('vless')
 
     def test_local_hysteria2_end_to_end_and_stop(self):
         self.exercise_protocol('hysteria2')
@@ -152,21 +145,17 @@ class CoreTests(unittest.TestCase):
             core = Core(data=data, port=client_port)
             try:
                 inbound = {'type': protocol, 'listen': '127.0.0.1', 'listen_port': server_port}
-                if protocol == 'vless':
-                    inbound['users'] = [{'uuid': UUID}]
-                    node = parse_link(VLESS.replace(':443', f':{server_port}'))
-                else:
-                    generated = subprocess.run([str(binary), 'generate', 'tls-keypair', 'localhost'],
-                                               capture_output=True, check=True, creationflags=CREATE_NO_WINDOW).stdout.decode()
-                    cert_start = generated.index('-----BEGIN CERTIFICATE-----')
-                    cert_end = generated.index('-----END CERTIFICATE-----') + len('-----END CERTIFICATE-----')
-                    key_start = generated.index('-----BEGIN PRIVATE KEY-----')
-                    key_end = generated.index('-----END PRIVATE KEY-----') + len('-----END PRIVATE KEY-----')
-                    certificate, key = generated[cert_start:cert_end], generated[key_start:key_end]
-                    inbound['users'] = [{'password': 'user:pass'}]
-                    inbound['tls'] = {'enabled': True, 'certificate': [certificate], 'key': [key]}
-                    node = parse_link(HY2.replace(':443', f':{server_port}'))
-                    node['outbound']['tls']['certificate'] = [certificate]
+                generated = subprocess.run([str(binary), 'generate', 'tls-keypair', 'localhost'],
+                                           capture_output=True, check=True, creationflags=CREATE_NO_WINDOW).stdout.decode()
+                cert_start = generated.index('-----BEGIN CERTIFICATE-----')
+                cert_end = generated.index('-----END CERTIFICATE-----') + len('-----END CERTIFICATE-----')
+                key_start = generated.index('-----BEGIN PRIVATE KEY-----')
+                key_end = generated.index('-----END PRIVATE KEY-----') + len('-----END PRIVATE KEY-----')
+                certificate, key = generated[cert_start:cert_end], generated[key_start:key_end]
+                inbound['users'] = [{'password': 'user:pass'}]
+                inbound['tls'] = {'enabled': True, 'certificate': [certificate], 'key': [key]}
+                node = parse_link(HY2.replace(':443', f':{server_port}'))
+                node['outbound']['tls']['certificate'] = [certificate]
                 config = {'log': {'level': 'error'}, 'inbounds': [inbound], 'outbounds': [{'type': 'direct'}]}
                 path = data / 'server.json'
                 path.write_text(json.dumps(config))
@@ -174,7 +163,7 @@ class CoreTests(unittest.TestCase):
                                           stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                                           creationflags=CREATE_NO_WINDOW)
                 core.start(node, 'all')
-                self.assertEqual(core.binary, binary, 'Both protocols must use the default sing-box core')
+                self.assertEqual(core.binary, binary, 'Hysteria 2 must use the default sing-box core')
                 self.assertFalse(list(data.glob('core-*.json')), 'Credentials must be removed after startup')
                 with requests.Session() as client:
                     client.trust_env = False
@@ -232,7 +221,7 @@ class CoreTests(unittest.TestCase):
             occupied.listen()
             core = Core(port=occupied.getsockname()[1])
             with self.assertRaisesRegex(RuntimeError, 'занят'):
-                core.start(parse_link(VLESS))
+                core.start(parse_link(HY2))
             self.assertFalse(core.alive())
 
 

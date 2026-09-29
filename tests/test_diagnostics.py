@@ -12,8 +12,8 @@ from subscription import parse_link
 class DiagnosticsTests(unittest.TestCase):
     def test_core_output_keeps_only_fixed_categories(self):
         diagnostics = CoreDiagnostics()
-        diagnostics.consume(io.BytesIO(b'failed REALITY verification for SECRET-HOST SECRET-UUID\n'))
-        self.assertIn('Reality', diagnostics.hint())
+        diagnostics.consume(io.BytesIO(b'x509: certificate verification failed for SECRET-HOST SECRET-UUID\n'))
+        self.assertIn('сертификата', diagnostics.hint())
         self.assertNotIn('SECRET', diagnostics.hint())
 
     def test_unrecognized_output_is_not_exposed(self):
@@ -36,9 +36,9 @@ class DiagnosticsTests(unittest.TestCase):
         core = Mock()
         core.connection_hint.return_value = 'TCP connection refused.'
         host = Host(io.BytesIO(), core=core)
-        host.nodes = [parse_link('vless://11111111-1111-4111-8111-111111111111@127.0.0.1:443?security=none')]
+        host.nodes = [parse_link('hy2://secret@127.0.0.1:443?sni=localhost')]
         with patch('native_host.check_connection', side_effect=ConnectionCheckError('SOCKS5 probe failed.')):
-            with self.assertRaisesRegex(RuntimeError, 'VLESS/sing-box.*SOCKS5.*TCP connection refused'):
+            with self.assertRaisesRegex(RuntimeError, 'Hysteria 2/sing-box.*SOCKS5.*TCP connection refused'):
                 host.dispatch({'action': 'connect', 'index': 0, 'routing_mode': 'all'})
         core.stop.assert_called_once()
         self.assertFalse(host.connected)

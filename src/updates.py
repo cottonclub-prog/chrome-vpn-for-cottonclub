@@ -8,7 +8,7 @@ import sys
 from urllib.request import ProxyHandler, Request, build_opener
 
 REPOSITORY = 'cottonclub-prog/chrome-vpn-for-cottonclub'
-ASSET = 'Chrome-vpn-for-cottonclub-sing-box-Windows-x64.zip'
+ASSET = 'Chrome-vpn-for-cottonclub-hysteria2-user-Windows-x64.zip'
 
 
 def version_tuple(value):
@@ -50,7 +50,7 @@ def launch_update():
     if os.name != 'nt' or not getattr(sys, 'frozen', False):
         raise RuntimeError('Обновление доступно после установки готового комплекта.')
     base = Path(sys.executable).resolve().parents[3]
-    expected = Path(os.environ['ProgramFiles']) / 'Chrome VPN for CottonClub'
+    expected = Path(os.environ['LOCALAPPDATA']) / 'Chrome VPN for CottonClub'
     script = base / 'Update.ps1'
     if base != expected.resolve() or not script.is_file():
         raise RuntimeError('Файлы обновления не найдены. Запустите Install.cmd из свежего репозитория.')

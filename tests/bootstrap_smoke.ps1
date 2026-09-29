@@ -3,7 +3,7 @@ $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $buildRoot = Join-Path $projectRoot 'build'
 $fixture = Join-Path $buildRoot ('bootstrap-test-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $fixture -Force | Out-Null
-$archivePath = Join-Path $projectRoot 'dist/Chrome-vpn-for-cottonclub-sing-box-Windows-x64.zip'
+$archivePath = Join-Path $projectRoot 'dist/Chrome-vpn-for-cottonclub-hysteria2-user-Windows-x64.zip'
 $global:CottonClubBootstrapDownloadMode = 'good'
 function Invoke-RestMethod {
     param([string]$Uri, $Headers, [int]$TimeoutSec)
@@ -12,7 +12,7 @@ function Invoke-RestMethod {
 }
 function Invoke-WebRequest {
     param([switch]$UseBasicParsing, [string]$Uri, [string]$OutFile, [int]$TimeoutSec)
-    if ($Uri -notmatch '^https://github\.com/cottonclub-prog/chrome-vpn-for-cottonclub/releases/download/v\d+\.\d+\.\d+/Chrome-vpn-for-cottonclub-sing-box-Windows-x64\.zip$') { throw 'Unexpected download origin' }
+    if ($Uri -notmatch '^https://github\.com/cottonclub-prog/chrome-vpn-for-cottonclub/releases/download/v\d+\.\d+\.\d+/Chrome-vpn-for-cottonclub-hysteria2-user-Windows-x64\.zip$') { throw 'Unexpected download origin' }
     if ($global:CottonClubBootstrapDownloadMode -eq 'offline') { throw 'Simulated network failure' }
     Copy-Item -LiteralPath $archivePath -Destination $OutFile
 }
@@ -28,8 +28,8 @@ try {
     $published = Get-Content (Join-Path $fixture 'release.json') -Raw | ConvertFrom-Json
     $global:CottonClubBootstrapTestRelease = [pscustomobject]@{
         tag_name = 'v' + $published.version; draft = $false; prerelease = $false
-        assets = @([pscustomobject]@{ name='Chrome-vpn-for-cottonclub-sing-box-Windows-x64.zip'; digest=('sha256:' + $published.sha256)
-            browser_download_url="https://github.com/cottonclub-prog/chrome-vpn-for-cottonclub/releases/download/v$($published.version)/Chrome-vpn-for-cottonclub-sing-box-Windows-x64.zip" })
+        assets = @([pscustomobject]@{ name='Chrome-vpn-for-cottonclub-hysteria2-user-Windows-x64.zip'; digest=('sha256:' + $published.sha256)
+            browser_download_url="https://github.com/cottonclub-prog/chrome-vpn-for-cottonclub/releases/download/v$($published.version)/Chrome-vpn-for-cottonclub-hysteria2-user-Windows-x64.zip" })
     }
     New-Item -ItemType Directory (Join-Path $fixture 'extension') | Out-Null
     '{"version":"1.0.0"}' | Set-Content (Join-Path $fixture 'extension/manifest.json') -Encoding UTF8

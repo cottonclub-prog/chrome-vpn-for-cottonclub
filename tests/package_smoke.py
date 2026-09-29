@@ -6,9 +6,12 @@ import struct
 import subprocess
 import tempfile
 import zipfile
+import xml.etree.ElementTree as ET
+
+import pefile
 
 ROOT = Path(__file__).resolve().parents[1]
-archive = ROOT / 'dist/Chrome-vpn-for-cottonclub-sing-box-Windows-x64.zip'
+archive = ROOT / 'dist/Chrome-vpn-for-cottonclub-hysteria2-user-Windows-x64.zip'
 with tempfile.TemporaryDirectory(dir=ROOT / 'build') as directory:
     destination = Path(directory)
     with zipfile.ZipFile(archive) as z:
@@ -27,10 +30,23 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'build') as directory:
             str(package / 'Install.ps1'), '-VerifyOnly']
     verified = subprocess.run(args, capture_output=True, timeout=30)
     assert verified.returncode == 0, verified.stderr
-    executable = package / 'host/ZXC-AdminHost.exe'
+    executable = package / 'host/CottonClub-Host.exe'
+    # Windows must not elevate the shipped helper or VPN core.
+    for binary in (executable, package / 'host/bin/sing-box.exe'):
+        with pefile.PE(str(binary)) as pe:
+            for resource in getattr(pe, 'DIRECTORY_ENTRY_RESOURCE', ()).entries if hasattr(pe, 'DIRECTORY_ENTRY_RESOURCE') else ():
+                if resource.id != 24:  # RT_MANIFEST
+                    continue
+                for name in resource.directory.entries:
+                    for language in name.directory.entries:
+                        data = language.data.struct
+                        manifest = ET.fromstring(pe.get_data(data.OffsetToData, data.Size).rstrip(b'\0'))
+                        levels = manifest.findall('.//{urn:schemas-microsoft-com:asm.v3}requestedExecutionLevel')
+                        assert all(item.get('level') == 'asInvoker' for item in levels), binary
     messages = [{'id': 1, 'action': 'status'},
-                {'id': 2, 'action': 'load', 'subscription': 'vless://11111111-1111-4111-8111-111111111111@127.0.0.1:443?security=none#Smoke'},
-                {'id': 3, 'action': 'disconnect'}]
+                {'id': 2, 'action': 'load', 'subscription': 'hysteria2://test-password@127.0.0.1:443?sni=localhost#Smoke'},
+                {'id': 3, 'action': 'disconnect'},
+                {'id': 4, 'action': 'load', 'subscription': 'vless://11111111-1111-4111-8111-111111111111@127.0.0.1:443?security=none'}]
     payload = b''
     for message in messages:
         body = json.dumps(message).encode()
@@ -44,13 +60,14 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'build') as directory:
         size, = struct.unpack('<I', data[:4])
         responses.append(json.loads(data[4:4 + size]))
         data = data[4 + size:]
-    assert len(responses) == 3 and all(r['ok'] for r in responses), responses
+    assert len(responses) == 4 and all(r['ok'] for r in responses[:3]), responses
+    assert not responses[3]['ok'], 'VLESS must be rejected by the shipped EXE'
     assert responses[0]['result']['port'] == 17892
     assert responses[1]['result']['nodes'][0]['name'] == 'Smoke'
     rejected = subprocess.run([str(executable), 'chrome-extension://wrong/'], input=b'',
                               capture_output=True, timeout=20, creationflags=0x08000000)
     assert rejected.returncode == 2
-    # Damaged packages must fail before elevation or any Windows mutations.
+    # Damaged packages must fail before any Windows mutations.
     (package / 'extension/popup.js').write_text('damaged', encoding='utf-8')
     damaged = subprocess.run(args, capture_output=True, timeout=30)
     assert damaged.returncode != 0

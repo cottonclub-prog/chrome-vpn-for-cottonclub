@@ -114,7 +114,7 @@ test('popup restores selection even when the node list has not changed', async (
   });
   vm.runInContext(source('popup.js'), context);
   await new Promise(resolve => setImmediate(resolve));
-  const state = {mode: 'off', nodes: [{index: 0, name: 'First', protocol: 'vless'}, {index: 1, name: 'Second', protocol: 'hysteria2'}], selected: 0};
+  const state = {mode: 'off', nodes: [{index: 0, name: 'First', protocol: 'hysteria2'}, {index: 1, name: 'Second', protocol: 'hysteria2'}], selected: 0};
   context.state = state;
   vm.runInContext('render(state)', context);
   state.selected = 1;

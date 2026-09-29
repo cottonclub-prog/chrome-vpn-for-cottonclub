@@ -21,7 +21,7 @@ function render(state) {
     for (const node of state.nodes || []) {
       const option = document.createElement('option');
       option.value = node.index;
-      option.textContent = `${node.name} · ${node.protocol === 'vless' ? 'VLESS' : 'Hysteria 2'}`;
+      option.textContent = `${node.name} · Hysteria 2`;
       el('server').append(option);
     }
     if (!state.nodes?.length) {

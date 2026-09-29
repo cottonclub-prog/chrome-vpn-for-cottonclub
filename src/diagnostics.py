@@ -26,9 +26,7 @@ class CoreDiagnostics:
     def record(self, line):
         text = line.lower()
         hint = ''
-        if 'reality' in text and any(token in text for token in ('invalid', 'failed', 'verification', 'mismatch')):
-            hint = 'sing-box сообщает об ошибке Reality. Проверьте SNI, публичный ключ, shortId и параметры сервера.'
-        elif any(token in text for token in ('certificate', 'x509:')) and any(token in text for token in ('failed', 'invalid', 'expired', 'unknown', 'mismatch')):
+        if any(token in text for token in ('certificate', 'x509:')) and any(token in text for token in ('failed', 'invalid', 'expired', 'unknown', 'mismatch')):
             hint = 'Ядро сообщает об ошибке сертификата. Проверьте SNI, сертификат сервера и дату Windows.'
         elif any(token in text for token in ('no such host', 'failed to lookup', 'dns lookup failed')):
             hint = 'Ядро не смогло разрешить имя через DNS.'

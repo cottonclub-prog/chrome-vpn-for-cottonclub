@@ -6,7 +6,6 @@ import socket
 import ssl
 from urllib.error import HTTPError, URLError
 from device_identity import subscription_headers
-import uuid
 from urllib.parse import parse_qs, unquote, urlsplit
 from urllib.request import HTTPSHandler, HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
@@ -87,7 +86,7 @@ def parse_subscription(text):
             compact = ''.join(text.split())
             text = base64.b64decode(compact + '=' * (-len(compact) % 4), altchars=b'-_', validate=True).decode('utf-8-sig')
         except (ValueError, UnicodeError):
-            raise SubscriptionError('Ожидается список ссылок VLESS/Hysteria 2 или Base64-подписка. JSON/HTML/Clash пока не поддерживаются.') from None
+            raise SubscriptionError('Ожидается список ссылок Hysteria 2 или Base64-подписка. JSON/HTML/Clash пока не поддерживаются.') from None
     nodes, errors = [], []
     for index, line in enumerate(text.splitlines(), 1):
         line = line.strip()
@@ -98,78 +97,50 @@ def parse_subscription(text):
         except (ValueError, KeyError):
             errors.append(index)
     if not nodes:
-        raise SubscriptionError('Нет поддерживаемых подключений. Нужны VLESS (TCP/WS/gRPC) или Hysteria 2.')
+        raise SubscriptionError('Нет поддерживаемых подключений. Нужны ссылки hysteria2:// или hy2://. Другие протоколы не поддерживаются.')
     return nodes, errors
 
 
 def parse_link(link):
     parsed = urlsplit(link)
-    kind = {'vless': 'vless', 'hysteria2': 'hysteria2', 'hy2': 'hysteria2'}.get(parsed.scheme)
-    if not kind or not parsed.hostname or not parsed.username:
-        raise SubscriptionError('Некорректная ссылка.')
+    if parsed.scheme not in ('hysteria2', 'hy2'):
+        raise SubscriptionError('Поддерживается только Hysteria 2 (hysteria2:// или hy2://).')
+    if not parsed.hostname or not parsed.username:
+        raise SubscriptionError('Некорректная ссылка Hysteria 2.')
     q = {k: v[-1] for k, v in parse_qs(parsed.query, keep_blank_values=True).items()}
-    node = {'type': kind, 'tag': 'vpn', 'server': parsed.hostname,
-            'server_port': parsed.port if parsed.port is not None else 443}
+    node = {'type': 'hysteria2', 'tag': 'vpn', 'server': parsed.hostname,
+            'server_port': parsed.port if parsed.port is not None else 443,
+            'password': unquote(parsed.netloc.rsplit('@', 1)[0])}
     if node['server_port'] < 1:
         raise SubscriptionError('Некорректный порт.')
-    security = q.get('security', 'none') if kind == 'vless' else 'tls'
-    if security not in ('none', 'tls', 'reality'):
-        raise SubscriptionError('Неподдерживаемый режим TLS.')
+    if q.get('security', 'tls') != 'tls':
+        raise SubscriptionError('Hysteria 2 требует TLS.')
     if any(q.get(k, '').lower() in ('1', 'true') for k in ('insecure', 'allowInsecure')):
         raise SubscriptionError('Ссылки с отключённой проверкой сертификата не поддерживаются.')
-    if security != 'none':
-        tls = {'enabled': True, 'server_name': q.get('sni') or q.get('peer') or parsed.hostname}
-        if q.get('alpn'):
-            tls['alpn'] = q['alpn'].split(',')
-        if kind == 'vless' and (q.get('fp') or security == 'reality'):
-            tls['utls'] = {'enabled': True, 'fingerprint': q.get('fp') or 'chrome'}
-        if security == 'reality':
-            if not q.get('pbk'):
-                raise SubscriptionError('Нет публичного ключа Reality.')
-            tls['reality'] = {'enabled': True, 'public_key': q['pbk'], 'short_id': q.get('sid', '')}
-        node['tls'] = tls
-    if kind == 'vless':
-        node['uuid'] = str(uuid.UUID(unquote(parsed.username)))
-        if q.get('encryption', 'none') not in ('', 'none'):
-            raise SubscriptionError('Этот режим шифрования VLESS пока не поддерживается.')
-        if q.get('flow'):
-            if q['flow'] != 'xtls-rprx-vision':
-                raise SubscriptionError('Неподдерживаемый flow.')
-            node['flow'] = q['flow']
-        transport = q.get('type', 'tcp')
-        if transport in ('tcp', 'raw'):
-            if q.get('headerType', 'none') not in ('', 'none'):
-                raise SubscriptionError('TCP header не поддерживается.')
-        elif transport == 'ws':
-            node['transport'] = {'type': 'ws', 'path': q.get('path', '/')}
-            if q.get('host'):
-                node['transport']['headers'] = {'Host': q['host']}
-        elif transport == 'grpc':
-            node['transport'] = {'type': 'grpc', 'service_name': q.get('serviceName', '')}
-        else:
-            raise SubscriptionError('Неподдерживаемый транспорт.')
-    else:
-        node['password'] = unquote(parsed.netloc.rsplit('@', 1)[0])
-        if q.get('obfs'):
-            if q['obfs'] != 'salamander' or not q.get('obfs-password'):
-                raise SubscriptionError('Неподдерживаемая обфускация.')
-            node['obfs'] = {'type': 'salamander', 'password': q['obfs-password']}
-        if q.get('mport'):
-            ranges = []
-            for item in q['mport'].split(','):
-                match = re.fullmatch(r'([0-9]{1,5})(?:[-:]([0-9]{1,5}))?', item.strip())
-                if not match:
-                    raise SubscriptionError('Некорректный диапазон портов Hysteria 2.')
-                first = int(match[1])
-                last = int(match[2] or match[1])
-                if not 1 <= first <= last <= 65535:
-                    raise SubscriptionError('Некорректный диапазон портов Hysteria 2.')
-                ranges.append(f'{first}:{last}')
-            node['server_ports'] = ranges
-            del node['server_port']
-        if q.get('pinSHA256'):
-            raise SubscriptionError('Закрепление сертификата pinSHA256 пока не поддерживается.')
-    name = unquote(parsed.fragment) or f'{kind.upper()} · {parsed.hostname}'
+    tls = {'enabled': True, 'server_name': q.get('sni') or q.get('peer') or parsed.hostname}
+    if q.get('alpn'):
+        tls['alpn'] = q['alpn'].split(',')
+    node['tls'] = tls
+    if q.get('obfs'):
+        if q['obfs'] != 'salamander' or not q.get('obfs-password'):
+            raise SubscriptionError('Неподдерживаемая обфускация.')
+        node['obfs'] = {'type': 'salamander', 'password': q['obfs-password']}
+    if q.get('mport'):
+        ranges = []
+        for item in q['mport'].split(','):
+            match = re.fullmatch(r'([0-9]{1,5})(?:[-:]([0-9]{1,5}))?', item.strip())
+            if not match:
+                raise SubscriptionError('Некорректный диапазон портов Hysteria 2.')
+            first = int(match[1])
+            last = int(match[2] or match[1])
+            if not 1 <= first <= last <= 65535:
+                raise SubscriptionError('Некорректный диапазон портов Hysteria 2.')
+            ranges.append(f'{first}:{last}')
+        node['server_ports'] = ranges
+        del node['server_port']
+    if q.get('pinSHA256'):
+        raise SubscriptionError('Закрепление сертификата pinSHA256 пока не поддерживается.')
+    name = unquote(parsed.fragment) or f'Hysteria 2 · {parsed.hostname}'
     name = ''.join(c for c in name if c.isprintable())[:120]
     return {'name': name, 'outbound': node}
 
@@ -177,6 +148,8 @@ def parse_link(link):
 def make_config(node, port, routing_mode='ru-direct'):
     from routing_policy import apply_singbox
     outbound = dict(node['outbound'])
+    if outbound.get('type') != 'hysteria2':
+        raise SubscriptionError('Поддерживается только Hysteria 2.')
     try:
         ipaddress.ip_address(outbound['server'])
     except ValueError:
