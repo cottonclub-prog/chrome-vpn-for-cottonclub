@@ -11,6 +11,9 @@ let savedNode = null;
 state.currentVersion = chrome.runtime.getManifest().version;
 state.update = null;
 state.updating = false;
+state.updateReady = false;
+state.updateFailed = false;
+let updateRequest = null;
 
 function restoreSelection() {
   const match = state.nodes.find(node => node.name === savedNode?.name && node.protocol === savedNode?.protocol);
@@ -47,8 +50,9 @@ const ready = (async () => {
   }
   await chrome.storage.session.setAccessLevel({accessLevel: 'TRUSTED_CONTEXTS'});
   const updateProgress = await chrome.storage.session.get('updatePending');
-  state.updating = updateProgress.updatePending === true;
-  if (state.updating) state.message = 'Дождитесь завершения установщика, затем нажмите «Перезагрузить расширение».';
+  updateRequest = updateProgress.updatePending || null;
+  state.updating = Boolean(updateRequest);
+  if (state.updating) state.message = 'Проверяю результат установки…';
   await badge();
 })();
 
@@ -171,23 +175,64 @@ async function releaseSettings() {
   await chrome.privacy.network.networkPredictionEnabled.clear({scope: 'regular'});
 }
 
+async function readUpdateProgress() {
+  state.updateReady = false;
+  state.updateFailed = false;
+  try {
+    if (!updateRequest?.id) throw new Error('legacy');
+    const response = await fetch(chrome.runtime.getURL('update-status.json'), {cache: 'no-store'});
+    if (!response.ok) throw new Error('missing');
+    const result = await response.json();
+    if (result.id !== updateRequest.id) throw new Error('stale');
+    if (result.phase === 'failed') {
+      state.updateFailed = true;
+      state.message = `Обновление не установлено: ${String(result.message || 'Ошибка установщика').slice(0, 500)}. Подробности: %LOCALAPPDATA%\\Chrome VPN for CottonClub\\update.log`;
+    } else if (result.phase === 'complete') {
+      const manifestResponse = await fetch(chrome.runtime.getURL('manifest.json'), {cache: 'no-store'});
+      if (!manifestResponse.ok) throw new Error('manifest');
+      const manifest = await manifestResponse.json();
+      if (manifest.version !== result.version || manifest.version !== updateRequest.version) {
+        state.updateFailed = true;
+        state.message = 'Новая версия не найдена в папке этого расширения. Установите свежий комплект и загрузите папку %LOCALAPPDATA%\\Chrome VPN for CottonClub\\extension в chrome://extensions.';
+      } else {
+        state.updateReady = true;
+        state.message = `Версия ${result.version} установлена. Теперь перезагрузите расширение.`;
+      }
+    } else {
+      state.message = Date.now() - updateRequest.started > 600000
+        ? 'Обновление не подтвердило завершение. Проверьте %LOCALAPPDATA%\\Chrome VPN for CottonClub\\update.log. Для ручной установки сначала выключите расширение в chrome://extensions.'
+        : 'Обновление выполняется. Кнопка перезагрузки станет доступна после проверки установленной версии.';
+    }
+  } catch (_) {
+    state.message = 'Результат обновления пока недоступен. Если ожидание не помогает, выключите расширение и запустите Install.cmd из свежего комплекта. Загружайте расширение из %LOCALAPPDATA%\\Chrome VPN for CottonClub\\extension.';
+  }
+}
+
 async function execute(command, message) {
   await ready;
   state.busy = true;
   try {
     if (command === 'finishUpdate') {
       if (!state.updating) throw new Error('Обновление не запущено.');
+      await readUpdateProgress();
+      if (!state.updateReady && !state.updateFailed) return {...state, busy: false};
       await chrome.storage.session.remove('updatePending');
       setTimeout(() => chrome.runtime.reload(), 200);
     } else if (state.updating) {
       // Opening the popup must not restart the helper while the installer runs.
-      state.message = 'Дождитесь завершения установщика, затем нажмите «Перезагрузить расширение».';
+      await readUpdateProgress();
     } else if (command === 'checkUpdate') {
       state.update = null;
       state.update = await rpc('checkUpdate', {version: state.currentVersion});
       state.message = state.update.available ? `Доступна версия ${state.update.version}.` : 'Установлена актуальная версия.';
     } else if (command === 'installUpdate') {
       if (!state.update?.available) throw new Error('Сначала проверьте наличие обновления.');
+      let managed = false;
+      try {
+        const response = await fetch(chrome.runtime.getURL('managed-install.json'), {cache: 'no-store'});
+        managed = response.ok && (await response.json()).managed === true;
+      } catch (_) {}
+      if (!managed) throw new Error('Расширение загружено из неустановленной копии. Запустите Install.cmd и в chrome://extensions загрузите папку %LOCALAPPDATA%\\Chrome VPN for CottonClub\\extension. Копия из Downloads автоматически не обновляется.');
       await releaseSettings();
       desired = false;
       await chrome.storage.local.set({vpnEnabled: false});
@@ -197,9 +242,13 @@ async function execute(command, message) {
       // Persist before launching to survive a service-worker restart.
       await chrome.storage.session.set({updatePending: true});
       state.updating = true;
+      state.updateReady = false;
+      state.updateFailed = false;
       try {
         const result = await rpc('installUpdate');
-        if (!result.started) throw new Error('Установщик не запустился.');
+        if (!result.started || !result.id) throw new Error('Установщик не подтвердил запуск. Установите свежий комплект вручную.');
+        updateRequest = {id: result.id, version: state.update.version, started: Date.now()};
+        await chrome.storage.session.set({updatePending: updateRequest});
       } catch (error) {
         state.updating = false;
         await chrome.storage.session.remove('updatePending');
@@ -209,7 +258,7 @@ async function execute(command, message) {
       native = null;
       if (port) port.disconnect();
       state.helper = false;
-      state.message = 'VPN отключён. Дождитесь завершения установки. После завершения нажмите «Перезагрузить расширение».';
+      state.message = 'VPN отключён. Обновление выполняется; ожидаю подтверждения установленной версии.';
     } else if (command === 'refresh') {
       let result = await rpc('status');
       if (!result.connected && !result.nodes?.length) {
@@ -303,6 +352,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (sender.id !== chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL(''))) return false;
   if (message.command === 'getState') {
     ready.then(async () => {
+      if (state.updating && !state.busy) await readUpdateProgress();
       const saved = await chrome.storage.local.get('subscription');
       respond({...state, subscription: saved.subscription || ''});
     });

@@ -1,4 +1,4 @@
-﻿param([switch]$VerifyOnly)
+﻿param([switch]$VerifyOnly, [switch]$Quiet)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 function Test-Package {
@@ -29,7 +29,7 @@ try {
     if (-not [Environment]::Is64BitOperatingSystem) { throw 'Windows x64 is required.' }
     if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'payload.json'))) {
         if (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'Bootstrap.ps1')) {
-            & (Join-Path $PSScriptRoot 'Bootstrap.ps1') -VerifyOnly:$VerifyOnly
+            & (Join-Path $PSScriptRoot 'Bootstrap.ps1') -VerifyOnly:$VerifyOnly -Quiet:$Quiet
             return
         }
         throw 'Incomplete installation package. Extract the whole ZIP or download the repository again.'
@@ -48,6 +48,8 @@ try {
     Copy-Item (Join-Path $PSScriptRoot 'host') $release -Recurse
     # Preserve the unpacked extension path across updates.
     Copy-Item (Join-Path $PSScriptRoot 'extension') $base -Recurse -Force
+    # Only the managed Chrome extension directory can update itself in place.
+    [IO.File]::WriteAllText((Join-Path $base 'extension/managed-install.json'), '{"managed":true}', [Text.UTF8Encoding]::new($false))
     foreach ($file in @('Launch.ps1','Uninstall.cmd','Uninstall.ps1','Bootstrap.ps1','Update.ps1','README.md')) { Copy-Item (Join-Path $PSScriptRoot $file) $base -Force }
     $id = 'hooimhadihhgfkhidbmjoaojfljafnaf'
     $hostPath = Join-Path $release 'com.cottonclub.hysteria2.json'
@@ -74,11 +76,12 @@ try {
         $shortcut.WorkingDirectory = $base
         $shortcut.Save()
     }
+    if ($Quiet) { Write-Host "Installed version $($manifest.version)."; return }
     Add-Type -AssemblyName System.Windows.Forms
     $message = "Installed for your Windows account, without administrator rights. In chrome://extensions enable Developer mode, click Load unpacked and select:`n$base\extension`nOn update, reload the existing extension."
     [Windows.Forms.MessageBox]::Show($message, 'Chrome VPN for CottonClub') | Out-Null
 } catch {
-    if ($VerifyOnly) { throw }
+    if ($VerifyOnly -or $Quiet) { throw }
     Add-Type -AssemblyName System.Windows.Forms
     [Windows.Forms.MessageBox]::Show($_.Exception.Message, 'Chrome VPN for CottonClub installation failed') | Out-Null
     throw

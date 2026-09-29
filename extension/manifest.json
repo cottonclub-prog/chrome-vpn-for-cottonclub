@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Chrome VPN for CottonClub",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Hysteria 2 для CottonClub в Google Chrome. Установка для текущего пользователя без прав администратора. Ядро sing-box.",
   "minimum_chrome_version": "120",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0yi/s7kBoEuOeRGcDY4RfhhsqAaYS6d5YoF4Kp4vwlOw4vRuqRAZbAiWk0aPOZgv62hdQrhhT3NFuqzYPqsrW6zygltx6lieyzdBeXxAODqKgG6jORjeAlt9g3Q8b8yflSx9+VQkpF5oFH83+mkxd50gMPOmLMOxXa9R+56219iBJuelS+uR/s6fH0XfqkTVJNP/AOnDXovmde9Tp03HFXKWQ77FkXzpq3kiEWotn7flX1hyUJX+o6vBLXfxpZwUjEAYQT+Ru3mfTSG6PZlgV9Qyq8oplle9+4PxLq0QQm7j3OALkAMxIPYjMg2ABVEH24MGcASEcWPqzcADmNOsTwIDAQAB",

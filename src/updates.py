@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import uuid
 from urllib.request import ProxyHandler, Request, build_opener
 
 REPOSITORY = 'cottonclub-prog/chrome-vpn-for-cottonclub'
@@ -55,8 +56,12 @@ def launch_update():
     if base != expected.resolve() or not script.is_file():
         raise RuntimeError('Файлы обновления не найдены. Запустите Install.cmd из свежего репозитория.')
     powershell = Path(os.environ['SystemRoot']) / 'System32/WindowsPowerShell/v1.0/powershell.exe'
-    subprocess.Popen([str(powershell), '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', str(script),
-                      '-WaitForHostPid', str(os.getpid())], stdin=subprocess.DEVNULL,
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                     creationflags=0x08000000, close_fds=True)
-    return {'started': True}
+    request_id = uuid.uuid4().hex
+    status = base / 'extension/update-status.json'
+    status.write_text(json.dumps({'id': request_id, 'phase': 'starting'}), encoding='utf-8')
+    # Keep startup errors: a successfully created process is not a completed update.
+    with (base / 'update.log').open('wb') as log:
+        subprocess.Popen([str(powershell), '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', str(script),
+                          '-WaitForHostPid', str(os.getpid()), '-UpdateId', request_id], stdin=subprocess.DEVNULL,
+                         stdout=log, stderr=log, creationflags=0x08000000, close_fds=True)
+    return {'started': True, 'id': request_id}

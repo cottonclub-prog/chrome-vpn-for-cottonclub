@@ -1,4 +1,4 @@
-﻿param([switch]$VerifyOnly, [switch]$Latest)
+﻿param([switch]$VerifyOnly, [switch]$Latest, [switch]$Quiet)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
@@ -62,7 +62,7 @@ try {
     Write-Host 'Package verified. Preparing installation...'
     $installer = Join-Path $package 'Install.ps1'
     # Run in this PowerShell process; installation never elevates.
-    & $installer -VerifyOnly:$VerifyOnly
+    & $installer -VerifyOnly:$VerifyOnly -Quiet:$Quiet
 
 } finally {
     # Only remove the unique directory created by this invocation, never a link.

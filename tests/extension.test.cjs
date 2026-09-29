@@ -61,16 +61,18 @@ test('updater disconnects VPN, persists pending state and releases native port',
   const app = background({}, savedSession);
   await app.ready;
   app.context.calls = [];
+  app.context.fetch = async () => ({ok: true, json: async () => ({managed: true})});
   vm.runInContext(`
     desired = true; state.mode = 'on'; state.update = {available: true, version: '1.0.4'};
-    rpc = async action => { calls.push(action); return action === 'installUpdate' ? {started: true} : {}; };
+    rpc = async action => { calls.push(action); return action === 'installUpdate' ? {started: true, id: 'test-update'} : {}; };
     native = {disconnect() { calls.push('nativeClosed'); }};
   `, app.context);
   const result = await app.send({command: 'installUpdate'});
   assert.equal(result.mode, 'off');
   assert.equal(result.updating, true);
   assert.equal(app.storage.vpnEnabled, false);
-  assert.equal(savedSession.updatePending, true);
+  assert.equal(savedSession.updatePending.id, 'test-update');
+  assert.equal(savedSession.updatePending.version, '1.0.4');
   assert.deepEqual([...app.context.calls], ['disconnect', 'installUpdate', 'nativeClosed']);
   await app.send({command: 'refresh'});
   assert.equal(app.context.calls.length, 3, 'popup must not reopen the helper');
@@ -82,6 +84,69 @@ test('pending update survives worker restart without starting helper', async () 
   const state = await app.send({command: 'refresh'});
   assert.equal(state.updating, true);
   assert.equal(state.helper, false);
+});
+
+test('extension loaded from a download folder cannot start an update of another copy', async () => {
+  const app = background();
+  await app.ready;
+  app.context.fetch = async () => ({ok: false});
+  app.context.calls = [];
+  vm.runInContext("state.update = {available: true, version: '1.0.4'}; rpc = async action => { calls.push(action); };", app.context);
+  const state = await app.send({command: 'installUpdate'});
+  assert.equal(state.updating, false);
+  assert.equal(app.context.calls.length, 0);
+  assert.match(state.message, /Downloads/);
+});
+
+test('reload is blocked until installation completes, including after a worker restart', async () => {
+  const savedSession = {updatePending: {id: 'request', version: '1.0.4', started: Date.now()}};
+  const app = background({}, savedSession);
+  await app.ready;
+  let phase = 'installing';
+  let manifestVersion = '1.0.3';
+  app.chrome.runtime.getURL = name => name;
+  app.context.fetch = async url => ({ok: true, json: async () => url === 'manifest.json'
+    ? {version: manifestVersion} : {id: 'request', phase, version: '1.0.4'}});
+  let reloads = 0;
+  app.chrome.runtime.reload = () => reloads++;
+  app.context.setTimeout = fn => fn();
+  let state = await app.send({command: 'finishUpdate'});
+  assert.equal(state.updateReady, false);
+  assert.equal(reloads, 0);
+  assert.ok(savedSession.updatePending);
+  phase = 'complete';
+  manifestVersion = '1.0.4';
+  state = await app.send({command: 'finishUpdate'});
+  assert.equal(state.updateReady, true);
+  assert.equal(reloads, 1);
+  assert.equal(savedSession.updatePending, undefined);
+});
+
+test('failed installer and wrong extension folder are not reported as successful updates', async () => {
+  const app = background({}, {updatePending: {id: 'request', version: '1.0.4', started: Date.now()}});
+  await app.ready;
+  app.chrome.runtime.getURL = name => name;
+  let phase = 'failed';
+  app.context.fetch = async url => ({ok: true, json: async () => url === 'manifest.json'
+    ? {version: '1.0.3'} : {id: 'request', phase, version: '1.0.4', message: 'Download failed'}});
+  let state = await app.send({command: 'getState'});
+  assert.equal(state.updateReady, false);
+  assert.equal(state.updateFailed, true);
+  assert.match(state.message, /Download failed/);
+  phase = 'complete';
+  state = await app.send({command: 'getState'});
+  assert.equal(state.updateReady, false);
+  assert.equal(state.updateFailed, true);
+  assert.match(state.message, /chrome:\/\/extensions/);
+});
+
+test('stale completion from a previous update cannot enable reload', async () => {
+  const app = background({}, {updatePending: {id: 'request', version: '1.0.4', started: Date.now()}});
+  await app.ready;
+  app.context.fetch = async () => ({ok: true, json: async () => ({id: 'previous', phase: 'complete', version: '1.0.4'})});
+  const state = await app.send({command: 'finishUpdate'});
+  assert.equal(state.updateReady, false);
+  assert.equal(state.updateFailed, false);
 });
 
 test('a failed badge update does not permanently break the command queue', async () => {

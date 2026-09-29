@@ -1,4 +1,5 @@
 import io
+import json
 import unittest
 import tempfile
 from pathlib import Path
@@ -77,13 +78,18 @@ class UpdateTests(unittest.TestCase):
             base = Path(directory) / 'Chrome VPN for CottonClub'
             executable = base / 'releases/test/host/CottonClub-Host.exe'
             executable.parent.mkdir(parents=True)
+            (base / 'extension').mkdir()
             (base / 'Update.ps1').write_text('# test', encoding='utf-8')
             with patch('updates.sys.frozen', True, create=True), patch('updates.sys.executable', str(executable)), \
                     patch.dict('os.environ', {'LOCALAPPDATA': directory}), patch('updates.os.getpid', return_value=123), \
                     patch('updates.subprocess.Popen') as popen:
-                self.assertTrue(launch_update()['started'])
+                result = launch_update()
+                self.assertTrue(result['started'])
+                status = json.loads((base / 'extension/update-status.json').read_text(encoding='utf-8'))
+                self.assertEqual(status, {'id': result['id'], 'phase': 'starting'})
                 arguments = popen.call_args.args[0]
-                self.assertEqual(arguments[-3:], [str(base / 'Update.ps1'), '-WaitForHostPid', '123'])
+                self.assertEqual(arguments[-5:], [str(base / 'Update.ps1'), '-WaitForHostPid', '123', '-UpdateId', result['id']])
+                self.assertEqual(popen.call_args.kwargs['stdout'].name, str(base / 'update.log'))
 
 
 if __name__ == '__main__':

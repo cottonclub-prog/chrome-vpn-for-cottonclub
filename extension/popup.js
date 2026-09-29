@@ -47,7 +47,8 @@ function render(state) {
   update('install-update', 'hidden', !state.update?.available || state.updating === true);
   update('install-update', 'disabled', busy);
   update('finish-update', 'hidden', state.updating !== true);
-  update('finish-update', 'disabled', state.busy || pending);
+  update('finish-update', 'textContent', state.updateFailed ? 'Вернуться к расширению' : 'Перезагрузить расширение');
+  update('finish-update', 'disabled', state.busy || pending || (!state.updateReady && !state.updateFailed));
 }
 
 async function command(command, fields = {}) {
