@@ -40,16 +40,13 @@ def apply_singbox(config, mode=DEFAULT_MODE, policy=None):
         return config
     policy = copy.deepcopy(policy) if policy is not None else load_policy()
     config['outbounds'].append({'type': 'direct', 'tag': 'direct', 'domain_resolver': 'bootstrap'})
-    config['dns']['servers'].append({
-        'type': 'https', 'tag': 'remote', 'server': '1.1.1.1', 'path': '/dns-query',
-        'tls': {'enabled': True, 'server_name': 'cloudflare-dns.com'}, 'detour': 'vpn'})
-    config['dns']['final'] = 'remote'
-    # Domain rules precede DNS. Russian and LAN domains use the local resolver.
-    # Remaining domains resolve over the VPN before checking the Russian IP list.
-    config['route']['rules'] = [
-        {**domain_rule(policy), 'action': 'route', 'outbound': 'direct'},
-        {'ip_cidr': policy['ip_cidr'], 'action': 'route', 'outbound': 'direct'},
-        {'action': 'resolve', 'server': 'remote', 'strategy': 'prefer_ipv4'},
-        {'ip_cidr': policy['ip_cidr'], 'action': 'route', 'outbound': 'direct'},
-    ]
+    # Preserve unknown hostnames for resolution by the VPN server, as in all mode.
+    # IP rules apply to literal destinations; do not add a DNS dependency to VPN traffic.
+    rules = []
+    domains = domain_rule(policy)
+    if domains:
+        rules.append({**domains, 'action': 'route', 'outbound': 'direct'})
+    if policy['ip_cidr']:
+        rules.append({'ip_cidr': policy['ip_cidr'], 'action': 'route', 'outbound': 'direct'})
+    config['route']['rules'] = rules
     return config

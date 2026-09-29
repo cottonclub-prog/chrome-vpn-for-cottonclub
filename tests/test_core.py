@@ -91,7 +91,8 @@ class SubscriptionTests(unittest.TestCase):
         config = make_config(parse_link(HY2), 17890, 'ru-direct')
         self.assertEqual(config['route']['final'], 'vpn')
         self.assertEqual([o['type'] for o in config['outbounds']], ['hysteria2', 'direct'])
-        self.assertEqual(config['dns']['servers'][1]['detour'], 'vpn')
+        self.assertEqual(len(config['dns']['servers']), 1)
+        self.assertTrue(all(r['action'] == 'route' for r in config['route']['rules']))
         self.assertEqual(config['route']['rules'][0]['outbound'], 'direct')
         with self.assertRaises(ValueError):
             make_config(parse_link(HY2), 17890, 'unknown')

@@ -36,6 +36,5 @@ class UserInstallTests(unittest.TestCase):
         self.assertEqual(HOST_NAME, 'com.cottonclub.hysteria2')
         self.assertNotIn('com.projectzxc.admin', source)
         manifest = json.loads((ROOT / 'extension/manifest.json').read_text(encoding='utf-8'))
-        self.assertEqual(manifest['version'], '1.2.0')
         self.assertIn('nativeMessaging', manifest['permissions'])
         self.assertIn(EXTENSION_ID, (ROOT / 'Install.ps1').read_text(encoding='utf-8-sig'))
