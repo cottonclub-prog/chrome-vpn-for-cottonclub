@@ -8,7 +8,7 @@ import tempfile
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-archive = ROOT / 'dist/Chrome-vpn-for-cottonclub-Windows-x64.zip'
+archive = ROOT / 'dist/Chrome-vpn-for-cottonclub-sing-box-Windows-x64.zip'
 with tempfile.TemporaryDirectory(dir=ROOT / 'build') as directory:
     destination = Path(directory)
     with zipfile.ZipFile(archive) as z:
@@ -21,6 +21,8 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'build') as directory:
     for item in entries:
         assert hashlib.sha256((package / item['path']).read_bytes()).hexdigest() == item['sha256'].lower()
     assert not list(package.rglob('Project-ZXC-for-Chrome.exe'))
+    assert {p.name for p in (package / 'host/bin').glob('*.exe')} == {'sing-box.exe'}
+    assert not list(package.rglob('*xray*'))
     args = ['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
             str(package / 'Install.ps1'), '-VerifyOnly']
     verified = subprocess.run(args, capture_output=True, timeout=30)

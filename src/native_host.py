@@ -107,7 +107,7 @@ class Host:
                     try:
                         self.address = check_connection(EXTENSION_PORT)
                     except Exception as error:
-                        protocol = 'VLESS/Xray' if self.nodes[index]['outbound']['type'] == 'vless' else 'Hysteria 2/sing-box'
+                        protocol = 'VLESS/sing-box' if self.nodes[index]['outbound']['type'] == 'vless' else 'Hysteria 2/sing-box'
                         reason = str(error) if isinstance(error, ConnectionCheckError) else 'Не удалось проверить интернет через сервер.'
                         hint = self.core.connection_hint()
                         if not isinstance(hint, str):

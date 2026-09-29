@@ -45,6 +45,14 @@ class SubscriptionTests(unittest.TestCase):
         self.assertEqual(node['outbound']['server'], '::1')
         self.assertEqual(node['outbound']['obfs']['password'], 'abc')
 
+    def test_hysteria_port_hopping(self):
+        node = parse_link(HY2.replace('#HY2', '&mport=443,8443-8450,9000:9002'))
+        self.assertEqual(node['outbound']['server_ports'], ['443:443', '8443:8450', '9000:9002'])
+        self.assertNotIn('server_port', node['outbound'])
+        for ports in ('0', '65536', '9000-8000', '443,', '-443', 'abc', '1:2:3'):
+            with self.subTest(ports=ports), self.assertRaises(SubscriptionError):
+                parse_link(HY2.replace('#HY2', '&mport=' + ports))
+
     def test_reject_unsupported_and_invalid(self):
         for link in (VLESS.replace('#Test', '&type=xhttp'), HY2 + '&insecure=1',
                      VLESS.replace(UUID, 'invalid'), 'https://example.com/'):
@@ -104,13 +112,28 @@ class CoreTests(unittest.TestCase):
     def test_config_validation(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:
             path = Path(directory) / 'check.json'
-            for link in (VLESS, HY2, VLESS.replace('127.0.0.1', 'example.com'),
-                         VLESS.replace('#Test', '&type=ws&path=%2Fws'),
-                         VLESS.replace('#Test', '&type=grpc&serviceName=test')):
-                path.write_text(json.dumps(make_config(parse_link(link), 17890)))
-                result = subprocess.run([str(ROOT / 'bin/sing-box.exe'), 'check', '-c', str(path)],
-                                        capture_output=True, creationflags=CREATE_NO_WINDOW)
-                self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
+            binary = ROOT / 'bin/sing-box.exe'
+            generated = subprocess.run([str(binary), 'generate', 'reality-keypair'],
+                                       capture_output=True, check=True,
+                                       creationflags=CREATE_NO_WINDOW).stdout.decode()
+            public_key = next(line.split(':', 1)[1].strip() for line in generated.splitlines()
+                              if line.startswith('PublicKey:'))
+            links = (VLESS, HY2, VLESS.replace('127.0.0.1', 'example.com'),
+                     VLESS.replace('#Test', '&type=ws&path=%2Fws&host=example.com'),
+                     VLESS.replace('#Test', '&type=grpc&serviceName=test'),
+                     VLESS.replace('security=none#Test', 'security=tls&sni=example.com'),
+                     VLESS.replace('security=none#Test',
+                                   f'security=reality&pbk={public_key}&sid=abcd&fp=chrome'
+                                   '&flow=xtls-rprx-vision&sni=example.com'),
+                     HY2.replace('#HY2', '&obfs=salamander&obfs-password=secret'),
+                     HY2.replace('#HY2', '&mport=443,8443-8450'))
+            for link in links:
+                for mode in ('all', 'ru-direct'):
+                    with self.subTest(link=link, mode=mode):
+                        path.write_text(json.dumps(make_config(parse_link(link), 17890, mode)))
+                        result = subprocess.run([str(binary), 'check', '-c', str(path)],
+                                                capture_output=True, creationflags=CREATE_NO_WINDOW)
+                        self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
 
     def test_local_vless_end_to_end_and_stop(self):
         self.exercise_protocol('vless')
@@ -151,6 +174,7 @@ class CoreTests(unittest.TestCase):
                                           stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                                           creationflags=CREATE_NO_WINDOW)
                 core.start(node, 'all')
+                self.assertEqual(core.binary, binary, 'Both protocols must use the default sing-box core')
                 self.assertFalse(list(data.glob('core-*.json')), 'Credentials must be removed after startup')
                 with requests.Session() as client:
                     client.trust_env = False

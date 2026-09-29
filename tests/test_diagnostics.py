@@ -38,7 +38,7 @@ class DiagnosticsTests(unittest.TestCase):
         host = Host(io.BytesIO(), core=core)
         host.nodes = [parse_link('vless://11111111-1111-4111-8111-111111111111@127.0.0.1:443?security=none')]
         with patch('native_host.check_connection', side_effect=ConnectionCheckError('SOCKS5 probe failed.')):
-            with self.assertRaisesRegex(RuntimeError, 'VLESS/Xray.*SOCKS5.*TCP connection refused'):
+            with self.assertRaisesRegex(RuntimeError, 'VLESS/sing-box.*SOCKS5.*TCP connection refused'):
                 host.dispatch({'action': 'connect', 'index': 0, 'routing_mode': 'all'})
         core.stop.assert_called_once()
         self.assertFalse(host.connected)

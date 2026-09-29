@@ -6,8 +6,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from native_host import Host, read_message, MAX_MESSAGE
-from subscription import parse_link
-from xray_config import make_xray_config
+from subscription import parse_link, make_config
 
 UUID = '11111111-1111-4111-8111-111111111111'
 
@@ -72,13 +71,13 @@ class NativeHostTests(unittest.TestCase):
             host.dispatch({'action': 'connect', 'index': 0, 'routing_mode': 'invalid'})
         core.start.assert_not_called()
 
-    def test_xray_reality_adapter(self):
+    def test_singbox_reality_config(self):
         node = parse_link(f'vless://{UUID}@example.org:443?security=reality&pbk=public&sid=abcd&sni=example.net&fp=chrome&flow=xtls-rprx-vision')
-        config = make_xray_config(node, 17891, 'all')
-        reality = config['outbounds'][0]['streamSettings']['realitySettings']
-        self.assertEqual(reality['password'], 'public')
-        self.assertEqual(reality['serverName'], 'example.net')
-        self.assertEqual([out['protocol'] for out in config['outbounds']], ['vless'])
+        config = make_config(node, 17891, 'all')
+        reality = config['outbounds'][0]['tls']['reality']
+        self.assertEqual(reality['public_key'], 'public')
+        self.assertEqual(config['outbounds'][0]['tls']['server_name'], 'example.net')
+        self.assertEqual([out['type'] for out in config['outbounds']], ['vless'])
         self.assertEqual(config['inbounds'][0]['listen'], '127.0.0.1')
 
 

@@ -1,4 +1,4 @@
-"""Equivalent split-tunnel rules for both native engines."""
+"""Split-tunnel rules shared by VLESS and Hysteria 2 on sing-box."""
 import copy
 import hashlib
 import json
@@ -52,35 +52,4 @@ def apply_singbox(config, mode=DEFAULT_MODE, policy=None):
         {'action': 'resolve', 'server': 'remote', 'strategy': 'prefer_ipv4'},
         {'ip_cidr': policy['ip_cidr'], 'action': 'route', 'outbound': 'direct'},
     ]
-    return config
-
-
-def xray_domains(policy):
-    return ([f'full:{value}' for value in policy['domain']] +
-            [f'domain:{value.lstrip(".")}' for value in policy['domain_suffix']] +
-            [f'regexp:{value}' for value in policy['domain_regex']] +
-            list(policy['domain_keyword']))
-
-
-def apply_xray(config, mode=DEFAULT_MODE, policy=None):
-    check_mode(mode)
-    if mode == 'all':
-        return config
-    policy = policy if policy is not None else load_policy()
-    domains = xray_domains(policy)
-    config['outbounds'].append({'tag': 'direct', 'protocol': 'freedom', 'settings': {'domainStrategy': 'UseIP'}})
-    config['dns'] = {
-        'tag': 'dns-vpn', 'queryStrategy': 'UseIPv4',
-        'servers': [
-            {'address': 'localhost', 'domains': domains, 'skipFallback': True},
-            'https://1.1.1.1/dns-query',
-        ]}
-    config['routing'] = {
-        'domainStrategy': 'IPOnDemand',
-        'rules': [
-            {'type': 'field', 'inboundTag': ['dns-vpn'], 'outboundTag': 'vpn'},
-            {'type': 'field', 'domain': domains, 'outboundTag': 'direct'},
-            {'type': 'field', 'ip': policy['ip_cidr'], 'outboundTag': 'direct'},
-        ]}
-    # The first outbound is always VPN; there is no automatic DIRECT fallback.
     return config

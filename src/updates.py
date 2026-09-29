@@ -8,7 +8,7 @@ import sys
 from urllib.request import ProxyHandler, Request, build_opener
 
 REPOSITORY = 'cottonclub-prog/chrome-vpn-for-cottonclub'
-ASSET = 'Chrome-vpn-for-cottonclub-Windows-x64.zip'
+ASSET = 'Chrome-vpn-for-cottonclub-sing-box-Windows-x64.zip'
 
 
 def version_tuple(value):

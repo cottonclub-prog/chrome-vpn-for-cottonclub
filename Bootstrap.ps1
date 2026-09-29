@@ -1,10 +1,10 @@
-param([switch]$VerifyOnly, [switch]$Latest)
+﻿param([switch]$VerifyOnly, [switch]$Latest)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
 # Source ZIPs contain this bootstrap; built packages contain payload.json instead.
 # Download and verify before requesting elevation. No Python or build tools needed.
-$asset = 'Chrome-vpn-for-cottonclub-Windows-x64.zip'
+$asset = 'Chrome-vpn-for-cottonclub-sing-box-Windows-x64.zip'
 if ($Latest) {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/cottonclub-prog/chrome-vpn-for-cottonclub/releases/latest' -Headers @{ 'User-Agent'='CottonClub-Updater' } -TimeoutSec 30
@@ -18,6 +18,9 @@ if ($Latest) {
     $metadata = [pscustomobject]@{ version=$version; sha256=$items[0].digest.Substring(7) }
 } else {
     $metadata = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'release.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+}
+if (-not $metadata.sha256) {
+    throw 'The sing-box package has not been published yet. Run Build.ps1, extract dist/Chrome-vpn-for-cottonclub-sing-box-Windows-x64.zip and run Install.cmd inside it.'
 }
 if ($metadata.version -notmatch '^\d+\.\d+\.\d+$' -or $metadata.sha256 -notmatch '^[0-9a-fA-F]{64}$') {
     throw 'Invalid release metadata. Download the repository again.'

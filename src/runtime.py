@@ -12,7 +12,6 @@ import time
 import threading
 
 from subscription import make_config
-from xray_config import make_xray_config
 from diagnostics import CoreDiagnostics, ConnectionCheckError, check_error_message
 
 PORT = 17890
@@ -83,7 +82,6 @@ def chrome_args(executable, data=DATA, port=PORT):
 
 class Core:
     def __init__(self, binary=None, data=DATA, port=PORT):
-        self.explicit_binary = binary
         self.binary = Path(binary or ROOT / 'bin/sing-box.exe')
         self.data, self.port = Path(data), port
         self.process = None
@@ -95,9 +93,6 @@ class Core:
     def start(self, node, routing_mode='ru-direct'):
         self.stop()
         self.diagnostics = CoreDiagnostics()
-        use_xray = node['outbound']['type'] == 'vless' and self.explicit_binary is None
-        if self.explicit_binary is None:
-            self.binary = ROOT / ('bin/xray.exe' if use_xray else 'bin/sing-box.exe')
         if not self.binary.is_file():
             raise RuntimeError(f'Нет bin/{self.binary.name}. Распакуйте полный архив программы.')
         # Refuse an occupied port, never switch Chrome onto an unrelated local proxy.
@@ -113,9 +108,8 @@ class Core:
             with tempfile.NamedTemporaryFile(mode='w', suffix='.json', prefix='core-',
                                              dir=self.data, encoding='utf-8', delete=False) as f:
                 self.config_path = Path(f.name)
-                json.dump(make_xray_config(node, self.port, routing_mode) if use_xray else make_config(node, self.port, routing_mode), f)
-            check_args = ['run', '-test'] if use_xray else ['check']
-            checked = subprocess.run([str(self.binary), *check_args, '-c', str(self.config_path)],
+                json.dump(make_config(node, self.port, routing_mode), f)
+            checked = subprocess.run([str(self.binary), 'check', '-c', str(self.config_path)],
                                      capture_output=True, timeout=15, creationflags=CREATE_NO_WINDOW)
             if checked.returncode:
                 raise RuntimeError('Ядро отклонило конфигурацию. Параметры этой ссылки пока не поддерживаются.')

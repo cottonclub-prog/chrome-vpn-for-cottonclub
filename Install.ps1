@@ -1,4 +1,4 @@
-param([switch]$VerifyOnly)
+﻿param([switch]$VerifyOnly)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 function Test-Package {
@@ -12,7 +12,7 @@ function Test-Package {
         $listed[$source] = $true
         if ((Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash -ne $item.sha256) { throw "Damaged package: $($item.path)" }
     }
-    foreach ($required in @('host/ZXC-AdminHost.exe','host/bin/xray.exe','host/bin/sing-box.exe','extension/manifest.json','Install.ps1','Launch.ps1','Launch.vbs','Uninstall.ps1','Uninstall.cmd','README.md')) {
+    foreach ($required in @('host/ZXC-AdminHost.exe','host/bin/sing-box.exe','extension/manifest.json','Install.ps1','Launch.ps1','Uninstall.ps1','Uninstall.cmd','README.md')) {
         if (-not $listed.ContainsKey([IO.Path]::GetFullPath((Join-Path $PSScriptRoot $required)))) { throw "Incomplete package: $required" }
     }
     foreach ($entry in (Get-ChildItem -LiteralPath $PSScriptRoot -Recurse -Force)) {
@@ -57,7 +57,7 @@ try {
     Copy-Item (Join-Path $PSScriptRoot 'host') $release -Recurse
     # Preserve the unpacked extension path across updates.
     Copy-Item (Join-Path $PSScriptRoot 'extension') $base -Recurse -Force
-    foreach ($file in @('Launch.vbs','Launch.ps1','Uninstall.cmd','Uninstall.ps1','Bootstrap.ps1','Update.ps1','README.md')) { Copy-Item (Join-Path $PSScriptRoot $file) $base -Force }
+    foreach ($file in @('Launch.ps1','Uninstall.cmd','Uninstall.ps1','Bootstrap.ps1','Update.ps1','README.md')) { Copy-Item (Join-Path $PSScriptRoot $file) $base -Force }
     $id = 'hooimhadihhgfkhidbmjoaojfljafnaf'
     $hostPath = Join-Path $release 'com.projectzxc.admin.json'
     $hostJson = @{name='com.projectzxc.admin'; description='Chrome VPN for CottonClub'; path=(Join-Path $release 'host/ZXC-AdminHost.exe'); type='stdio'; allowed_origins=@("chrome-extension://$id/")} | ConvertTo-Json
@@ -77,8 +77,9 @@ try {
     $shell = New-Object -ComObject WScript.Shell
     foreach ($folder in @([Environment]::GetFolderPath('CommonDesktopDirectory'), [Environment]::GetFolderPath('CommonPrograms'))) {
         $shortcut = $shell.CreateShortcut((Join-Path $folder 'Chrome VPN for CottonClub.lnk'))
-        $shortcut.TargetPath = Join-Path $env:WINDIR 'System32/wscript.exe'
-        $shortcut.Arguments = '"' + (Join-Path $base 'Launch.vbs') + '"'
+        $shortcut.TargetPath = Join-Path $env:WINDIR 'System32/WindowsPowerShell/v1.0/powershell.exe'
+        $shortcut.Arguments = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + (Join-Path $base 'Launch.ps1') + '"'
+        $shortcut.WindowStyle = 7
         $shortcut.WorkingDirectory = $base
         $shortcut.Save()
     }

@@ -15,6 +15,15 @@ def release(version='1.0.4'):
 
 
 class UpdateTests(unittest.TestCase):
+    def test_dual_core_release_is_rejected(self):
+        old = release('9.0.0')
+        old_asset = 'Chrome-vpn-for-cottonclub-Windows-x64.zip'
+        old['assets'][0]['name'] = old_asset
+        old['assets'][0]['browser_download_url'] = (
+            f'https://github.com/{REPOSITORY}/releases/download/v9.0.0/{old_asset}')
+        with self.assertRaises(ValueError):
+            parse_release(old, '1.1.0')
+
     def test_numeric_version_comparison_and_no_downgrade(self):
         self.assertTrue(parse_release(release('1.0.10'), '1.0.9')['available'])
         self.assertFalse(parse_release(release('1.0.2'), '1.0.3')['available'])

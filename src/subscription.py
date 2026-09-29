@@ -1,6 +1,7 @@
 """Convert share links to a deliberately small, local-only sing-box config."""
 import base64
 import ipaddress
+import re
 import socket
 import ssl
 from urllib.error import HTTPError, URLError
@@ -154,7 +155,18 @@ def parse_link(link):
                 raise SubscriptionError('Неподдерживаемая обфускация.')
             node['obfs'] = {'type': 'salamander', 'password': q['obfs-password']}
         if q.get('mport'):
-            node['server_ports'] = q['mport'].replace('-', ':').split(',')
+            ranges = []
+            for item in q['mport'].split(','):
+                match = re.fullmatch(r'([0-9]{1,5})(?:[-:]([0-9]{1,5}))?', item.strip())
+                if not match:
+                    raise SubscriptionError('Некорректный диапазон портов Hysteria 2.')
+                first = int(match[1])
+                last = int(match[2] or match[1])
+                if not 1 <= first <= last <= 65535:
+                    raise SubscriptionError('Некорректный диапазон портов Hysteria 2.')
+                ranges.append(f'{first}:{last}')
+            node['server_ports'] = ranges
+            del node['server_port']
         if q.get('pinSHA256'):
             raise SubscriptionError('Закрепление сертификата pinSHA256 пока не поддерживается.')
     name = unquote(parsed.fragment) or f'{kind.upper()} · {parsed.hostname}'
