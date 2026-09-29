@@ -145,7 +145,7 @@ def parse_link(link):
     return {'name': name, 'outbound': node}
 
 
-def make_config(node, port, routing_mode='ru-direct'):
+def make_config(node, port, routing_mode='ru-direct', routing_rules=None):
     from routing_policy import apply_singbox
     outbound = dict(node['outbound'])
     if outbound.get('type') != 'hysteria2':
@@ -161,4 +161,4 @@ def make_config(node, port, routing_mode='ru-direct'):
         'outbounds': [outbound],
         'route': {'final': 'vpn'},
     }
-    return apply_singbox(config, routing_mode)
+    return apply_singbox(config, routing_mode, routing_rules)

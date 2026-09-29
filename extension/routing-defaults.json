@@ -1,0 +1,6 @@
+[
+  {"type": "geoip-ru", "value": "", "outbound": "direct", "enabled": true},
+  {"type": "domain", "value": "ru", "outbound": "direct", "enabled": true},
+  {"type": "domain", "value": "su", "outbound": "direct", "enabled": true},
+  {"type": "domain", "value": "xn--p1ai", "outbound": "direct", "enabled": true}
+]

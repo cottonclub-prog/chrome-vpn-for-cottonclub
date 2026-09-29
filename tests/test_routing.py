@@ -18,10 +18,11 @@ import requests
 
 from runtime import Core, ROOT, CREATE_NO_WINDOW
 from subscription import make_config, parse_link
+from routing_policy import default_rules
 from test_core import unused_port
 
 VPN_DOMAINS = ['chatgpt.com', 'cdn.oaistatic.com', 'files.oaiusercontent.com',
-               'openai.com', 'challenges.cloudflare.com', 'outside.example']
+               'openai.com', 'challenges.cloudflare.com', 'outside.example', 'yandex.com']
 DIRECT_DOMAINS = ['example.ru', 'example.su', 'example.xn--p1ai',
                   'intranet', 'printer.local', 'router.home.arpa']
 
@@ -101,9 +102,9 @@ class SplitRoutingTests(unittest.TestCase):
         self.resources.callback(server.shutdown)
         return server
 
-    def start_client(self, mode):
-        def config(node, port, routing_mode):
-            result = make_config(node, port, routing_mode)
+    def start_client(self, mode, rules=None):
+        def config(node, port, routing_mode, routing_rules=None):
+            result = make_config(node, port, routing_mode, routing_rules)
             # Local DNS deliberately maps even foreign names to the direct origin.
             # The VPN route must pass names unchanged and never use this mapping.
             result['dns']['servers'][0] = {
@@ -111,7 +112,7 @@ class SplitRoutingTests(unittest.TestCase):
                 'predefined': {name: ['127.0.0.1'] for name in VPN_DOMAINS + DIRECT_DOMAINS}}
             return result
         with patch('runtime.make_config', side_effect=config):
-            self.core.start(self.node, mode)
+            self.core.start(self.node, mode, rules)
 
     def fetch(self, host):
         with requests.Session() as client:
@@ -129,14 +130,36 @@ class SplitRoutingTests(unittest.TestCase):
                     self.assertEqual(self.fetch(domain), b'VPN')
 
     def test_russian_and_local_destinations_are_direct(self):
-        self.start_client('ru-direct')
+        rules = default_rules() + [
+            {'type': 'domain', 'value': name, 'outbound': 'direct', 'enabled': True} for name in DIRECT_DOMAINS[3:]
+        ] + [{'type': 'ip', 'value': '127.0.0.1', 'outbound': 'direct', 'enabled': True}]
+        self.start_client('ru-direct', rules)
         for domain in DIRECT_DOMAINS + ['127.0.0.1']:
             with self.subTest(domain=domain):
                 self.assertEqual(self.fetch(domain), b'DIRECT')
 
     def test_foreign_request_never_falls_back_to_direct_when_vpn_is_unavailable(self):
         self.node['outbound']['server_port'] = unused_port()
-        self.start_client('ru-direct')
+        self.start_client('ru-direct', [{'type': 'domain', 'value': 'intranet', 'outbound': 'direct', 'enabled': True}])
         self.assertEqual(self.fetch('intranet'), b'DIRECT')
         with self.assertRaises(requests.RequestException):
             self.fetch('chatgpt.com')
+
+    def test_default_rules_have_no_hidden_local_exceptions(self):
+        self.start_client('ru-direct')
+        for name in DIRECT_DOMAINS[:3]:
+            self.assertEqual(self.fetch(name), b'DIRECT')
+        for name in DIRECT_DOMAINS[3:]:
+            self.assertEqual(self.fetch(name), b'VPN')
+
+    def test_user_rule_order_and_disabled_rules_change_real_route(self):
+        exception = {'type': 'domain', 'value': 'example.ru', 'outbound': 'vpn', 'enabled': True}
+        self.start_client('ru-direct', [exception] + default_rules())
+        self.assertEqual(self.fetch('example.ru'), b'VPN')
+        self.start_client('ru-direct', default_rules() + [exception])
+        self.assertEqual(self.fetch('example.ru'), b'DIRECT')
+        exception['enabled'] = False
+        self.start_client('ru-direct', [exception] + default_rules())
+        self.assertEqual(self.fetch('example.ru'), b'DIRECT')
+        self.start_client('ru-direct', [])
+        self.assertEqual(self.fetch('example.ru'), b'VPN')

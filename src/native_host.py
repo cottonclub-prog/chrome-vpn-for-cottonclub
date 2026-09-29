@@ -8,7 +8,7 @@ import threading
 from host_config import EXTENSION_ID, EXTENSION_PORT
 from runtime import Core, DATA, check_connection
 from subscription import fetch_subscription, SubscriptionError
-from routing_policy import DEFAULT_MODE, MODES
+from routing_policy import DEFAULT_MODE, MODES, validate_rules
 from diagnostics import ConnectionCheckError
 from updates import check_update, launch_update
 
@@ -81,6 +81,8 @@ class Host:
                 return launch_update()
             if action == 'status':
                 return self.status()
+            if action == 'validateRouting':
+                return {'rules': validate_rules(request.get('rules'))}
             if action == 'load':
                 if self.connected:
                     raise RuntimeError('Сначала отключите VPN.')
@@ -103,7 +105,10 @@ class Host:
                 self.connected = False
                 self.address = None
                 try:
-                    self.core.start(self.nodes[index], mode)
+                    if 'routing_rules' in request:
+                        self.core.start(self.nodes[index], mode, validate_rules(request['routing_rules']))
+                    else:
+                        self.core.start(self.nodes[index], mode)
                     try:
                         self.address = check_connection(EXTENSION_PORT)
                     except Exception as error:
@@ -112,7 +117,7 @@ class Host:
                         hint = self.core.connection_hint()
                         if not isinstance(hint, str):
                             hint = ''
-                        route = 'Россия напрямую' if mode == 'ru-direct' else 'Всё через VPN'
+                        route = 'По правилам' if mode == 'ru-direct' else 'Всё через VPN'
                         raise RuntimeError(f'{protocol}, {route}: {reason} {hint}'.strip()) from None
                     self.connected = True
                     self.routing_mode = mode

@@ -26,6 +26,9 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'build') as directory:
     assert not list(package.rglob('Project-ZXC-for-Chrome.exe'))
     assert {p.name for p in (package / 'host/bin').glob('*.exe')} == {'sing-box.exe'}
     assert not list(package.rglob('*xray*'))
+    assert json.loads((package / 'host/routing/default-rules.json').read_text(encoding='utf-8')) == json.loads((package / 'extension/routing-defaults.json').read_text(encoding='utf-8'))
+    policy = json.loads((package / 'host/routing/ru-direct.json').read_text(encoding='utf-8'))
+    assert not any(policy[key] for key in ('domain', 'domain_suffix', 'domain_regex', 'domain_keyword'))
     args = ['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
             str(package / 'Install.ps1'), '-VerifyOnly']
     verified = subprocess.run(args, capture_output=True, timeout=30)
@@ -46,7 +49,9 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'build') as directory:
     messages = [{'id': 1, 'action': 'status'},
                 {'id': 2, 'action': 'load', 'subscription': 'hysteria2://test-password@127.0.0.1:443?sni=localhost#Smoke'},
                 {'id': 3, 'action': 'disconnect'},
-                {'id': 4, 'action': 'load', 'subscription': 'vless://11111111-1111-4111-8111-111111111111@127.0.0.1:443?security=none'}]
+                {'id': 4, 'action': 'load', 'subscription': 'vless://11111111-1111-4111-8111-111111111111@127.0.0.1:443?security=none'},
+                {'id': 5, 'action': 'validateRouting', 'rules': [{'type': 'domain', 'value': '.рф', 'outbound': 'vpn', 'enabled': True}]},
+                {'id': 6, 'action': 'validateRouting', 'rules': [{'type': 'ip', 'value': 'invalid', 'outbound': 'direct', 'enabled': True}]}]
     payload = b''
     for message in messages:
         body = json.dumps(message).encode()
@@ -60,8 +65,10 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'build') as directory:
         size, = struct.unpack('<I', data[:4])
         responses.append(json.loads(data[4:4 + size]))
         data = data[4 + size:]
-    assert len(responses) == 4 and all(r['ok'] for r in responses[:3]), responses
+    assert len(responses) == 6 and all(r['ok'] for r in responses[:3]), responses
     assert not responses[3]['ok'], 'VLESS must be rejected by the shipped EXE'
+    assert responses[4]['ok'] and responses[4]['result']['rules'][0]['value'] == 'xn--p1ai'
+    assert not responses[5]['ok'], 'Invalid routing rules must be rejected by the shipped EXE'
     assert responses[0]['result']['port'] == 17892
     assert responses[1]['result']['nodes'][0]['name'] == 'Smoke'
     rejected = subprocess.run([str(executable), 'chrome-extension://wrong/'], input=b'',

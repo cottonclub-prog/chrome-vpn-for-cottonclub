@@ -13,6 +13,7 @@ state.update = null;
 state.updating = false;
 state.updateReady = false;
 state.updateFailed = false;
+state.routingRules = [];
 let updateRequest = null;
 
 function restoreSelection() {
@@ -30,7 +31,14 @@ async function saveSelection(index) {
 
 const ready = (async () => {
   await chrome.storage.local.setAccessLevel({accessLevel: 'TRUSTED_CONTEXTS'});
-  const saved = await chrome.storage.local.get(['vpnEnabled', 'routingMode', 'subscription', 'selectedNode']);
+  const saved = await chrome.storage.local.get(['vpnEnabled', 'routingMode', 'routingRules', 'subscription', 'selectedNode']);
+  if (Array.isArray(saved.routingRules)) state.routingRules = saved.routingRules;
+  else {
+    const defaults = await fetch(chrome.runtime.getURL('routing-defaults.json'));
+    if (!defaults.ok) throw new Error('Не удалось прочитать исходные правила маршрутизации.');
+    state.routingRules = await defaults.json();
+    await chrome.storage.local.set({routingRules: state.routingRules});
+  }
   savedNode = saved.selectedNode || null;
   if (!saved.subscription) {
     const previous = await chrome.storage.session.get('subscription');
@@ -221,6 +229,13 @@ async function execute(command, message) {
     } else if (state.updating) {
       // Opening the popup must not restart the helper while the installer runs.
       await readUpdateProgress();
+    } else if (command === 'saveRouting') {
+      if (desired || state.mode === 'on') throw new Error('Сначала отключите VPN, затем сохраните правила.');
+      const result = await rpc('validateRouting', {rules: message.rules});
+      await chrome.storage.local.set({routingRules: result.rules});
+      state.routingRules = result.rules;
+      state.message = 'Правила сохранены. Они применятся при следующем подключении в режиме «По правилам».';
+      return {...state, busy: false, saved: true};
     } else if (command === 'checkUpdate') {
       state.update = null;
       state.update = await rpc('checkUpdate', {version: state.currentVersion});
@@ -298,14 +313,14 @@ async function execute(command, message) {
       if (!['ru-direct', 'all'].includes(message.mode)) throw new Error('Неизвестный режим маршрутизации.');
       state.routingMode = message.mode;
       await chrome.storage.local.set({routingMode: state.routingMode});
-      state.message = state.routingMode === 'ru-direct' ? 'Россия и локальная сеть будут открываться напрямую.' : 'Все сайты будут открываться через VPN.';
+      state.message = state.routingMode === 'ru-direct' ? 'Будут применены ваши правила маршрутизации.' : 'Все сайты будут открываться через VPN; ваши правила временно не применяются.';
     } else if (command === 'connect') {
       if (!Number.isInteger(message.index)) throw new Error('Выберите подключение.');
       await saveSelection(message.index);
       await canControl(chrome.proxy.settings);
       state.message = 'Проверяю соединение…';
       const wasDesired = desired;
-      const result = await rpc('connect', {index: message.index, routing_mode: state.routingMode});
+      const result = await rpc('connect', {index: message.index, routing_mode: state.routingMode, routing_rules: state.routingRules});
       absorb(result);
       try {
         // Persist intent first. After a browser crash the proxy must not silently clear.
@@ -313,7 +328,7 @@ async function execute(command, message) {
         await chrome.storage.local.set({vpnEnabled: true});
         await applyProxy();
         state.mode = 'on';
-        state.message = state.routingMode === 'ru-direct' ? 'Подключено. Россия и локальная сеть — напрямую, остальные сайты — через VPN.' : 'Подключено. Все сайты — через VPN.';
+        state.message = state.routingMode === 'ru-direct' ? 'Подключено по вашим правилам. Остальное — через VPN.' : 'Подключено. Все сайты — через VPN.';
       } catch (error) {
         await rpc('disconnect').catch(() => {});
         if (!wasDesired) {

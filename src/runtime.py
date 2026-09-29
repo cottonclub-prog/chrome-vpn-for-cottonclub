@@ -90,7 +90,7 @@ class Core:
         self.diagnostics = CoreDiagnostics()
         self.log_thread = None
 
-    def start(self, node, routing_mode='ru-direct'):
+    def start(self, node, routing_mode='ru-direct', routing_rules=None):
         self.stop()
         self.diagnostics = CoreDiagnostics()
         if not self.binary.is_file():
@@ -108,7 +108,7 @@ class Core:
             with tempfile.NamedTemporaryFile(mode='w', suffix='.json', prefix='core-',
                                              dir=self.data, encoding='utf-8', delete=False) as f:
                 self.config_path = Path(f.name)
-                json.dump(make_config(node, self.port, routing_mode), f)
+                json.dump(make_config(node, self.port, routing_mode, routing_rules), f)
             checked = subprocess.run([str(self.binary), 'check', '-c', str(self.config_path)],
                                      capture_output=True, timeout=15, creationflags=CREATE_NO_WINDOW)
             if checked.returncode:

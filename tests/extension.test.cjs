@@ -28,7 +28,8 @@ function background(saved = {}, savedSession = {}) {
       onMessage: {addListener(fn) { listeners.message = fn; }}, onStartup: {addListener() {}},
       connectNative() { throw new Error('Helper unavailable'); }},
   };
-  const context = vm.createContext({chrome, setTimeout, clearTimeout});
+  const context = vm.createContext({chrome, setTimeout, clearTimeout,
+    fetch: async () => ({ok: true, json: async () => JSON.parse(source('routing-defaults.json'))})});
   vm.runInContext(source('background.js'), context);
   return {chrome, storage, context,
     ready: vm.runInContext('ready', context),
@@ -167,6 +168,41 @@ test('unavailable helper leaves disabled VPN off', async () => {
   const result = await app.send({command: 'refresh'});
   assert.equal(result.mode, 'off');
   assert.equal(result.busy, false);
+});
+
+test('routing defaults migrate once and an explicitly empty list survives restart', async () => {
+  const app = background();
+  await app.ready;
+  assert.equal(app.storage.routingRules.length, 4);
+  const empty = background({routingRules: []});
+  await empty.ready;
+  assert.deepEqual([...empty.storage.routingRules], []);
+});
+
+test('rules are validated before saving and restored after worker restart', async () => {
+  const app = background();
+  await app.ready;
+  const rules = [{type: 'domain', value: 'example.com', outbound: 'vpn', enabled: true}];
+  app.context.rules = rules;
+  vm.runInContext('rpc = async (action, fields) => { if (action !== "validateRouting") throw new Error("Unexpected action"); return {rules: fields.rules}; };', app.context);
+  const saved = await app.send({command: 'saveRouting', rules});
+  assert.equal(saved.saved, true);
+  assert.deepEqual(app.storage.routingRules, rules);
+  const restarted = background(app.storage);
+  await restarted.ready;
+  assert.deepEqual((await restarted.send({command: 'getState'})).routingRules, rules);
+  vm.runInContext('rpc = async () => { throw new Error("Invalid rule"); };', app.context);
+  const rejected = await app.send({command: 'saveRouting', rules: []});
+  assert.equal(rejected.saved, undefined);
+  assert.deepEqual(app.storage.routingRules, rules);
+});
+
+test('saving rules while VPN is active is rejected without changing storage', async () => {
+  const app = background({vpnEnabled: true});
+  await app.ready;
+  const result = await app.send({command: 'saveRouting', rules: []});
+  assert.equal(result.saved, undefined);
+  assert.equal(app.storage.routingRules.length, 4);
 });
 
 test('popup restores selection even when the node list has not changed', async () => {

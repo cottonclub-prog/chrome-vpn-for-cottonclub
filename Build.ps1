@@ -23,6 +23,7 @@ try {
     New-Item -ItemType Directory -Path $package -Force | Out-Null
     Copy-Item (Join-Path $output 'CottonClub-Host') (Join-Path $package 'host') -Recurse
     Copy-Item routing (Join-Path $package 'host') -Recurse
+    Copy-Item (Join-Path $PSScriptRoot 'extension/routing-defaults.json') (Join-Path $package 'host/routing/default-rules.json')
     $coreDirectory = Join-Path $package 'host/bin'
     New-Item -ItemType Directory -Path $coreDirectory -Force | Out-Null
     # Explicit allowlist also excludes stale binaries from previous builds.

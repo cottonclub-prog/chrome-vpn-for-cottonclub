@@ -2,17 +2,12 @@
   "retrieved_utc": "2026-09-18T00:57:56.229263+00:00",
   "sources": [
     {
-      "repo": "SagerNet/sing-geosite",
-      "revision": "2188cad8cff230c36953175811304957e6d04326",
-      "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/2188cad8cff230c36953175811304957e6d04326/geosite-category-ru.srs",
-      "sha256": "c36e157adf86edf7b722b51f3acb93bbb2a7f8083932dae29b4b5ef2c1ced870"
-    },
-    {
       "repo": "SagerNet/sing-geoip",
       "revision": "7fe82a879ad2666526730c195b55a6d8d9147908",
       "url": "https://raw.githubusercontent.com/SagerNet/sing-geoip/7fe82a879ad2666526730c195b55a6d8d9147908/geoip-ru.srs",
       "sha256": "6e23f5580dd443e2f9c4895adafee8d199c1a3487182ad5f0a2256cf59c7e53a"
     }
   ],
-  "policy_sha256": "2c8c351f81b09280624514ac98f74af50bf9f40c0d993b2dc48a74e0e073b71d"
+  "policy_sha256": "286d4e1440eac22bcc2280c3706bd53bf2eeb6eb0af73edcb674ed13172ab2c2",
+  "transform": "Removed all domain lists and non-global IP ranges; retained Russian public IP ranges only."
 }
