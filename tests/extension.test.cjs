@@ -205,20 +205,4 @@ test('saving rules while VPN is active is rejected without changing storage', as
   assert.equal(app.storage.routingRules.length, 4);
 });
 
-test('popup restores selection even when the node list has not changed', async () => {
-  const elements = new Map();
-  const element = () => ({value: '', addEventListener() {}, replaceChildren() {}, append() {}});
-  const context = vm.createContext({
-    document: {getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); }, createElement: element},
-    chrome: {runtime: {sendMessage: async () => undefined}},
-    navigator: {}, setInterval() {},
-  });
-  vm.runInContext(source('popup.js'), context);
-  await new Promise(resolve => setImmediate(resolve));
-  const state = {mode: 'off', nodes: [{index: 0, name: 'First', protocol: 'hysteria2'}, {index: 1, name: 'Second', protocol: 'hysteria2'}], selected: 0};
-  context.state = state;
-  vm.runInContext('render(state)', context);
-  state.selected = 1;
-  vm.runInContext('render(state)', context);
-  assert.equal(elements.get('server').value, '1');
-});
+// Popup selection regression is covered in routing_ui_smoke.py with a real DOM.

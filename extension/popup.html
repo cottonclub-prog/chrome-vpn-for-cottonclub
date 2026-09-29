@@ -1,30 +1,36 @@
 <!doctype html>
-<html lang="ru">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chrome VPN for CottonClub</title><link rel="stylesheet" href="popup.css"></head>
-<body>
-  <header><div><span class="eyebrow">HYSTERIA 2 · CHROME</span><h1>CottonClub</h1></div><span id="badge">Отключён</span></header>
-  <main>
-    <div class="card"><label for="subscription">ПОДПИСКА</label>
-    <div class="row"><input id="subscription" type="password" autocomplete="off" spellcheck="false" placeholder="https://…"><button id="paste" class="secondary">Вставить</button></div>
-    <div class="subscription-actions"><label class="checkbox"><input id="show" type="checkbox">Показать ссылку</label>
-    <button id="load" class="secondary">Загрузить</button></div></div>
-    <div class="card"><label for="server">СЕРВЕР</label><select id="server"><option value="">Сначала загрузите подписку</option></select>
-    <label for="routing">МАРШРУТИЗАЦИЯ</label><select id="routing"><option value="ru-direct">По правилам</option><option value="all">Всё через VPN</option></select>
-    <p class="hint"><a href="routing.html" target="_blank">Настроить домены и IP →</a></p></div>
-    <div class="connection-actions">
-    <button id="connect" class="primary wide" disabled>Подключить</button>
-    <button id="disconnect" class="secondary wide" disabled>Отключить VPN</button>
-    </div>
-    <section aria-live="polite"><p id="status">Подключаю помощник…</p><p id="ip"></p></section>
-    <p class="hint">Действует в этом профиле Chrome. При потере помощника доступ блокируется до переподключения или отключения VPN.</p>
-    <a href="help.html" target="_blank">Установка и помощь</a>
-    <div class="card updates">
-      <p id="version"></p>
-      <button id="check-update" class="secondary wide">Проверить обновления</button>
-      <button id="install-update" class="primary wide" hidden>Обновить — VPN отключится</button>
-      <button id="finish-update" class="secondary wide" hidden>Перезагрузить расширение</button>
-      <p class="hint">Обновление устанавливается для текущего пользователя без прав администратора. Перезагружайте расширение только после завершения или отмены установщика.</p>
-    </div>
-  </main>
-  <script src="popup.js"></script>
-</body></html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CottonClub</title><link rel="stylesheet" href="popup.css"></head><body>
+<svg class="symbols" xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="power-icon" viewBox="0 0 24 24"><path d="M12 3v9M6.3 6.3a8 8 0 1 0 11.4 0"/></symbol>
+<symbol id="shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z"/><path d="m8.5 12 2.3 2.3 4.7-4.8"/></symbol>
+<symbol id="route" viewBox="0 0 24 24"><rect x="3" y="3" width="6" height="6" rx="2"/><rect x="15" y="15" width="6" height="6" rx="2"/><path d="M9 6h6a3 3 0 0 1 0 6H9a3 3 0 0 0 0 6h6"/></symbol>
+<symbol id="settings" viewBox="0 0 24 24"><path d="M4 6h9m4 0h3M4 12h3m4 0h9M4 18h9m4 0h3"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="15" cy="18" r="2"/></symbol>
+<symbol id="globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><ellipse cx="12" cy="12" rx="3.5" ry="8.5"/><path d="M4 9h16M4 15h16"/></symbol>
+<symbol id="chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+<symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="edit" viewBox="0 0 24 24"><path d="m4 16 12-12a2 2 0 0 1 4 4L8 20l-5 1zM14 6l4 4"/></symbol>
+<symbol id="close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+<symbol id="copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="3"/><path d="M15 5V4a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2"/></symbol>
+<symbol id="refresh" viewBox="0 0 24 24"><path d="M19 9a7.5 7.5 0 1 0 .2 6M20 4v6h-6"/></symbol>
+<symbol id="eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="eye-off" viewBox="0 0 24 24"><path d="m3 3 18 18M9 5.5A10 10 0 0 1 12 5c6.5 0 10 7 10 7a18 18 0 0 1-3 4M6 6.5A20 20 0 0 0 2 12s3.5 7 10 7a12 12 0 0 0 5-1.2M10 10a3 3 0 0 0 4 4"/></symbol>
+</defs></svg>
+<div class="frame" id="app"><header class="head"><div class="brand"><span class="brandmark"><svg><use href="#shield"/></svg></span>COTTONCLUB</div><span class="version">HYSTERIA 2</span></header>
+<nav class="tabs" aria-label="Разделы"><button class="tab" data-screen="vpn" aria-selected="true"><svg><use href="#shield"/></svg>VPN</button><button class="tab" data-screen="rules" aria-selected="false"><svg><use href="#route"/></svg>Правила</button><button class="tab" data-screen="settings" aria-selected="false"><svg><use href="#settings"/></svg>Настройки</button></nav>
+<main class="body">
+<div class="screen" id="vpn"><div class="status" id="connection-status"><span class="dot"></span><span id="status-text">Готов к подключению</span></div><div class="power-wrap"><button class="power" id="power" aria-pressed="false" aria-label="Подключить VPN"><svg><use href="#power-icon"/></svg></button></div><h2 class="hero-title" id="hero-title">Интернет по вашим правилам</h2><p class="sub" id="hero-sub">Нажмите, чтобы подключиться</p>
+<button class="card server" id="server-picker"><span class="flag" aria-hidden="true"><svg><use href="#globe"/></svg></span><span class="grow"><span class="strong server-name" id="server-name">Выберите сервер</span><div class="muted">Hysteria 2</div></span><span class="pill">HY2</span><svg style="width:16px;color:#8b819b"><use href="#chevron"/></svg></button>
+<div class="card route-card"><div class="wide-row"><span class="label">Маршрутизация</span><button class="quiet" id="open-rules">Настроить →</button></div><div class="seg"><button class="active" data-mode="rules">По правилам</button><button data-mode="all">Всё через VPN</button></div></div></div>
+<div class="screen" id="rules" hidden><div class="section-head"><h2>Ваши маршруты</h2><button class="smallbtn" id="add-rule"><svg><use href="#plus"/></svg>Добавить</button></div><p class="explain">Правила применяются сверху вниз.</p><div class="rules" id="rule-list" aria-label="Правила по порядку приоритета"></div><div class="fallback"><svg><use href="#shield"/></svg>Остальные адреса<span style="margin-left:auto">Через VPN</span></div><div class="rules-actions"><button class="primary" id="save-rules">Сохранить правила</button><p class="save-note" id="rule-note">Применятся при следующем подключении.</p></div></div>
+<div class="screen" id="settings" hidden><h2 class="settings-title">Всё для подключения</h2><div class="card"><div class="wide-row"><span class="strong">Подписка</span><span class="pill app-version"></span></div><label class="field" for="subscription">Ссылка подписки</label><div class="row"><input class="input" id="subscription" type="password" placeholder="https://…" autocomplete="off"><button class="iconbtn" id="show-sub" aria-label="Показать или скрыть ссылку"><svg><use href="#globe"/></svg></button></div><button class="primary" id="load-sub" style="margin-top:12px">Обновить серверы</button></div><div class="card"><div class="setting-item wide-row"><div><div class="strong">Версия приложения</div><div class="muted" id="version"></div></div><span class="pill app-version"></span></div><div class="setting-item wide-row"><span class="strong">Обновления</span><button class="quiet" id="check-update">Проверить</button></div><div class="setting-item wide-row"><span class="strong">Правила по умолчанию</span><button class="quiet" id="reset-rules">Восстановить</button></div></div><div class="update-actions"><button class="smallbtn" id="install-update" hidden></button><button class="smallbtn" id="finish-update" hidden></button><a class="help-link" href="help.html" target="_blank" rel="noopener" id="help-link"></a></div><p class="explain" style="margin-top:16px">Работает только в этом профиле Chrome.<br>Другие приложения не затрагиваются.</p></div>
+</main><p class="connection-message" id="status" role="status" hidden></p><footer class="footer"><span class="row"><svg><use href="#shield"/></svg>Только этот профиль Chrome</span><span class="footmark">sing-box</span></footer>
+<div class="sheet" id="editor" hidden><form class="sheet-panel" id="rule-form" role="dialog" aria-modal="true" aria-labelledby="editor-title">
+<div class="sheet-grip" aria-hidden="true"></div>
+<div class="editor-heading"><span class="editor-symbol"><svg><use href="#route"/></svg></span><div><h3 id="editor-title">Новое правило</h3><p>Выберите адрес и его маршрут</p></div><button type="button" class="iconbtn" id="close-editor" aria-label="Закрыть редактор"><svg><use href="#close"/></svg></button></div>
+<label class="field" id="address-label" for="address-trigger">Тип адреса</label><input type="hidden" id="rule-type" value="domain"><div class="address-picker" id="address-picker"><button type="button" class="address-trigger" id="address-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="address-options" aria-labelledby="address-label address-caption"><svg><use href="#globe"/></svg><span id="address-caption">Домен и поддомены</span><svg class="arrow"><use href="#chevron"/></svg></button><div class="address-options" id="address-options" role="listbox" aria-labelledby="address-label" hidden><div class="address-option" role="option" tabindex="-1" data-type="domain" aria-selected="false"><span class="option-icon"><svg><use href="#globe"/></svg></span><span><strong>Домен и поддомены</strong><small>example.com</small></span><svg class="selected-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></div><div class="address-option" role="option" tabindex="-1" data-type="ip" aria-selected="false"><span class="option-icon"><svg><use href="#route"/></svg></span><span><strong>IP-адрес или подсеть</strong><small>192.168.0.0/16</small></span><svg class="selected-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></div><div class="address-option" role="option" tabindex="-1" data-type="geoip-ru" aria-selected="false"><span class="option-icon"><svg><use href="#globe"/></svg></span><span><strong>IP России</strong><small>Russia</small></span><svg class="selected-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></div></div></div>
+<label class="field" for="rule-value">Домен или адрес</label><input class="input" id="rule-value" placeholder="example.com" maxlength="253" aria-describedby="rule-value-help"><p class="field-help" id="rule-value-help">Без https:// и пути. Поддомены тоже учитываются.</p>
+<span class="direction-label" id="direction-label">Маршрут</span><input type="hidden" id="rule-outbound" value="direct"><div class="direction-grid" role="group" aria-labelledby="direction-label"><button class="direction-option" type="button" data-direction="direct" aria-pressed="true"><svg><use href="#globe"/></svg><span><strong>Напрямую</strong><small>Обычная сеть</small></span></button><button class="direction-option" type="button" data-direction="vpn" aria-pressed="false"><svg><use href="#shield"/></svg><span><strong>Через VPN</strong><small>Выбранный сервер</small></span></button></div>
+<div class="enable-row"><label for="rule-enabled">Правило включено</label><input type="checkbox" role="switch" checked id="rule-enabled"></div>
+<div class="order" id="order-controls"><button type="button" class="smallbtn" id="move-up">↑ Выше</button><button type="button" class="smallbtn" id="move-down">↓ Ниже</button><button type="button" class="smallbtn danger" id="delete-rule">Удалить</button></div><button class="primary" type="submit">Готово</button><p class="save-note">Исключения ставьте выше общих правил.</p></form></div>
+<div class="sheet" id="servers" hidden><div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="picker-title"><div class="sheet-grip" aria-hidden="true"></div><div class="wide-row"><div><div class="picker-kicker">ЛОКАЦИИ</div><h3 id="picker-title">Выберите сервер</h3></div><button class="iconbtn" id="close-servers" aria-label="Закрыть список серверов"><svg><use href="#close"/></svg></button></div><div class="picker-summary"><span>Hysteria 2</span><span class="picker-count" id="server-count">0</span></div><div id="server-list" role="group" aria-label="Серверы"></div><div class="picker-footer"><svg><use href="#shield"/></svg>Выбор сервера не запускает подключение</div></div></div><div class="toast" role="status" id="toast" hidden></div>
+</div><script src="popup.js"></script></body></html>
