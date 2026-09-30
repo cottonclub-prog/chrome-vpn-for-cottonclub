@@ -68,7 +68,7 @@ async function badge() {
   const text = state.mode === 'on' ? 'ON' : ['blocked', 'error'].includes(state.mode) ? '!' : '';
   await chrome.action.setBadgeText({text});
   await chrome.action.setBadgeBackgroundColor({color: state.mode === 'on' ? '#167c5a' : '#b64c26'});
-  await chrome.action.setTitle({title: `Chrome VPN for CottonClub · ${state.mode === 'on' ? 'Подключено' : ['blocked', 'error'].includes(state.mode) ? 'Соединение потеряно' : 'Отключено'}`});
+  await chrome.action.setTitle({title: `COTTONCLUB VPN · ${state.mode === 'on' ? 'Подключено' : ['blocked', 'error'].includes(state.mode) ? 'Соединение потеряно' : 'Отключено'}`});
 }
 
 function absorb(data) {
