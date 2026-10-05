@@ -33,7 +33,22 @@ function Install-ApplicationFiles([string]$Package, [string]$Parent) {
         if ((Test-Path -LiteralPath $existingIdentity) -and [IO.File]::ReadAllText($existingIdentity).Trim() -cnotmatch '^[a-f0-9]{32}$') { throw 'Invalid saved device identifier; migration cancelled.' }
     }
     if (Test-Path -LiteralPath $previous) { Move-Item -LiteralPath $previous -Destination $base }
-    if ((Test-Path -LiteralPath $base) -and (Get-Item -LiteralPath $base).Name -cne 'CottonClub VPN for Chrome') { Rename-Item -LiteralPath $base -NewName 'CottonClub VPN for Chrome' }
+    # Get-Item preserves the spelling of its argument on Windows. Enumerate the
+    # parent to read the name stored on disk before deciding to change casing.
+    $installedDirectory = Get-ChildItem -LiteralPath $Parent -Directory -Force | Where-Object { $_.Name -ieq 'CottonClub VPN for Chrome' } | Select-Object -First 1
+    if ($installedDirectory -and $installedDirectory.Name -cne 'CottonClub VPN for Chrome') {
+        # PowerShell rejects a case-only rename as the same path. Use a unique
+        # sibling temporarily, then restore the original name on any failure.
+        $temporaryName = 'CottonClub VPN for Chrome.rename-' + [guid]::NewGuid().ToString('N')
+        $temporary = [IO.Path]::GetFullPath((Join-Path $Parent $temporaryName))
+        if ([IO.Path]::GetDirectoryName($temporary) -ne [IO.Path]::GetFullPath($Parent).TrimEnd('\') -or (Test-Path -LiteralPath $temporary)) { throw 'Invalid temporary rename target' }
+        Rename-Item -LiteralPath $installedDirectory.FullName -NewName $temporaryName
+        try { Rename-Item -LiteralPath $temporary -NewName 'CottonClub VPN for Chrome' }
+        catch {
+            if (Test-Path -LiteralPath $temporary) { Rename-Item -LiteralPath $temporary -NewName $installedDirectory.Name }
+            throw
+        }
+    }
     New-Item -ItemType Directory -Path $base -Force | Out-Null
     $previousExtension = Join-Path $base 'extension'
     $extension = Join-Path $base 'CottonClub VPN for Chrome'

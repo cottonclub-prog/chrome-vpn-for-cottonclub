@@ -47,7 +47,7 @@ $caseRoot = Join-Path $caseParent 'cottonclub vpn for chrome'
 New-Item -ItemType Directory -Path (Join-Path $caseRoot 'extension') -Force | Out-Null
 [IO.File]::WriteAllText((Join-Path $caseRoot 'device-id.txt'), $identity)
 $caseBase = Install-ApplicationFiles $package $caseParent
-if ((Get-Item -LiteralPath $caseBase).Name -cne 'CottonClub VPN for Chrome') { throw 'Installation folder casing was not updated' }
+if ((Get-ChildItem -LiteralPath $caseParent -Directory | Where-Object { $_.Name -ieq 'CottonClub VPN for Chrome' }).Name -cne 'CottonClub VPN for Chrome') { throw 'Installation folder casing was not updated on disk' }
 if ((Test-Path (Join-Path $caseBase 'extension')) -or -not (Test-Path (Join-Path $caseBase 'CottonClub VPN for Chrome/manifest.json'))) { throw 'Version 1.6.0 extension folder was not migrated' }
 if ([IO.File]::ReadAllText((Join-Path $caseBase 'device-id.txt')) -cne $identity) { throw 'Case migration changed device identity' }
 # A malformed previous identity must fail before creating or moving installation files.
