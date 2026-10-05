@@ -30,7 +30,11 @@ async function saveSelection(index) {
 }
 
 const ready = (async () => {
-  await chrome.storage.local.setAccessLevel({accessLevel: 'TRUSTED_CONTEXTS'});
+  // Chrome 138 exposes setAccessLevel only on session storage.
+  // Restrict local storage when supported without blocking older browsers.
+  if (typeof chrome.storage.local.setAccessLevel === 'function') {
+    await chrome.storage.local.setAccessLevel({accessLevel: 'TRUSTED_CONTEXTS'});
+  }
   const saved = await chrome.storage.local.get(['vpnEnabled', 'routingMode', 'routingRules', 'subscription', 'selectedNode']);
   if (Array.isArray(saved.routingRules)) state.routingRules = saved.routingRules;
   else {

@@ -5,9 +5,10 @@ const vm = require('node:vm');
 const {test} = require('node:test');
 const source = name => fs.readFileSync(path.join(__dirname, '../extension', name), 'utf8');
 
-function background(saved = {}, savedSession = {}) {
+function background(saved = {}, savedSession = {}, {localAccessLevel = true} = {}) {
   const listeners = {};
   const storage = {...saved};
+  const accessCalls = [];
   const setting = () => ({
     value: {}, levelOfControl: 'controllable_by_this_extension',
     async get() { return {value: this.value, levelOfControl: this.levelOfControl}; },
@@ -17,8 +18,8 @@ function background(saved = {}, savedSession = {}) {
   });
   const chrome = {
     storage: {
-      local: {async setAccessLevel() {}, async get() { return {...storage}; }, async set(value) { Object.assign(storage, value); }},
-      session: {async setAccessLevel() {}, async get() { return {...savedSession}; }, async set(value) { Object.assign(savedSession, value); }, async remove(key) { delete savedSession[key]; }},
+      local: {async setAccessLevel(options) { accessCalls.push({area:'local', level:options.accessLevel}); }, async get() { return {...storage}; }, async set(value) { Object.assign(storage, value); }},
+      session: {async setAccessLevel(options) { accessCalls.push({area:'session', level:options.accessLevel}); }, async get() { return {...savedSession}; }, async set(value) { Object.assign(savedSession, value); }, async remove(key) { delete savedSession[key]; }},
     },
     action: {async setBadgeText() {}, async setBadgeBackgroundColor() {}, async setTitle() {}},
     proxy: {settings: setting()},
@@ -28,15 +29,45 @@ function background(saved = {}, savedSession = {}) {
       onMessage: {addListener(fn) { listeners.message = fn; }}, onStartup: {addListener() {}},
       connectNative() { throw new Error('Helper unavailable'); }},
   };
+  if (!localAccessLevel) delete chrome.storage.local.setAccessLevel;
   const context = vm.createContext({chrome, setTimeout, clearTimeout,
     fetch: async () => ({ok: true, json: async () => JSON.parse(source('routing-defaults.json'))})});
   vm.runInContext(source('background.js'), context);
-  return {chrome, storage, context,
+  return {chrome, storage, context, accessCalls,
     ready: vm.runInContext('ready', context),
     send(message) { return new Promise(resolve => listeners.message(message,
       {id: 'test', url: 'chrome-extension://test/popup.html'}, resolve)); },
   };
 }
+
+test('Chrome 138 without local.setAccessLevel restores saved settings and retains session restrictions', async () => {
+  const rules = [{type:'domain', value:'example.com', outbound:'vpn', enabled:true}];
+  const app = background({subscription:'https://example.com/sub', routingMode:'all', routingRules:rules}, {}, {localAccessLevel:false});
+  await app.ready;
+  const state = await app.send({command:'getState'});
+  assert.equal(state.subscription, 'https://example.com/sub');
+  assert.equal(state.routingMode, 'all');
+  assert.deepEqual(JSON.parse(JSON.stringify(state.routingRules)), rules);
+  assert.deepEqual(app.accessCalls, [{area:'session', level:'TRUSTED_CONTEXTS'}]);
+});
+
+test('Chrome 138 without local.setAccessLevel keeps enabled VPN blocked until explicit disconnect', async () => {
+  const app = background({vpnEnabled:true}, {}, {localAccessLevel:false});
+  await app.ready;
+  assert.equal((await app.send({command:'getState'})).mode, 'blocked');
+  assert.equal(app.chrome.proxy.settings.value.rules.singleProxy.port, 17892);
+  assert.equal((await app.send({command:'disconnect'})).mode, 'off');
+  assert.equal(app.storage.vpnEnabled, false);
+});
+
+test('browsers supporting local.setAccessLevel restrict both storage areas', async () => {
+  const app = background();
+  await app.ready;
+  assert.deepEqual(app.accessCalls, [
+    {area:'local', level:'TRUSTED_CONTEXTS'},
+    {area:'session', level:'TRUSTED_CONTEXTS'},
+  ]);
+});
 
 test('restart with enabled VPN retains a blocking proxy until explicit disconnect', async () => {
   const app = background({vpnEnabled: true});
