@@ -74,6 +74,11 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'build') as directory:
     rejected = subprocess.run([str(executable), 'chrome-extension://wrong/'], input=b'',
                               capture_output=True, timeout=20, creationflags=0x08000000)
     assert rejected.returncode == 2
+    corporate = subprocess.run([str(executable), 'chrome-extension://pppgaipmgmbndhejmkabemifkonbgooh/'],
+                               input=payload[:4 + struct.unpack('<I', payload[:4])[0]], capture_output=True,
+                               timeout=20, creationflags=0x08000000)
+    assert corporate.returncode == 0, corporate.stderr
+    assert json.loads(corporate.stdout[4:])['ok'], 'CRX origin must be accepted'
     # Damaged packages must fail before any Windows mutations.
     (package / 'extension/popup.js').write_text('damaged', encoding='utf-8')
     damaged = subprocess.run(args, capture_output=True, timeout=30)

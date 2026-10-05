@@ -5,7 +5,7 @@ import struct
 import sys
 import threading
 
-from host_config import EXTENSION_ID, EXTENSION_PORT
+from host_config import EXTENSION_IDS, EXTENSION_PORT
 from runtime import Core, DATA, check_connection
 from subscription import fetch_subscription, SubscriptionError
 from routing_policy import DEFAULT_MODE, MODES, validate_rules
@@ -172,7 +172,7 @@ class Host:
 
 
 def main():
-    if os.name != 'nt' or len(sys.argv) < 2 or sys.argv[1] != f'chrome-extension://{EXTENSION_ID}/':
+    if os.name != 'nt' or len(sys.argv) < 2 or sys.argv[1] not in {f'chrome-extension://{identity}/' for identity in EXTENSION_IDS}:
         return 2
     import msvcrt
     msvcrt.setmode(sys.stdin.fileno(), os.O_BINARY)

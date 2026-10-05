@@ -9,6 +9,7 @@ let state = {mode: 'off', busy: false, nodes: [], selected: 0, ip: '', message: 
 let desired = false;
 let savedNode = null;
 state.currentVersion = chrome.runtime.getManifest().version;
+state.enterprise = Boolean(chrome.runtime.getManifest().update_url);
 state.update = null;
 state.updating = false;
 state.updateReady = false;
@@ -245,6 +246,10 @@ async function execute(command, message) {
       state.update = await rpc('checkUpdate', {version: state.currentVersion});
       state.message = state.update.available ? `Доступна версия ${state.update.version}.` : 'Установлена актуальная версия.';
     } else if (command === 'installUpdate') {
+      if (state.enterprise) {
+        state.message = 'CRX обновляется корпоративной политикой Chrome. Для обновления помощника используйте новый EXE-установщик из Releases.';
+        return {...state, busy:false};
+      }
       if (!state.update?.available) throw new Error('Сначала проверьте наличие обновления.');
       let managed = false;
       try {

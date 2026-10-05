@@ -53,7 +53,7 @@ try {
     foreach ($file in @('Launch.ps1','Uninstall.cmd','Uninstall.ps1','Bootstrap.ps1','Update.ps1','README.md')) { Copy-Item (Join-Path $PSScriptRoot $file) $base -Force }
     $id = 'hooimhadihhgfkhidbmjoaojfljafnaf'
     $hostPath = Join-Path $release 'com.cottonclub.hysteria2.json'
-    $hostJson = @{name='com.cottonclub.hysteria2'; description='Chrome VPN for CottonClub'; path=(Join-Path $release 'host/CottonClub-Host.exe'); type='stdio'; allowed_origins=@("chrome-extension://$id/")} | ConvertTo-Json
+    $hostJson = @{name='com.cottonclub.hysteria2'; description='COTTONCLUB VPN'; path=(Join-Path $release 'host/CottonClub-Host.exe'); type='stdio'; allowed_origins=@("chrome-extension://$id/", 'chrome-extension://pppgaipmgmbndhejmkabemifkonbgooh/')} | ConvertTo-Json
     [IO.File]::WriteAllText($hostPath, $hostJson, [Text.UTF8Encoding]::new($false))
     $hkcu = [Microsoft.Win32.RegistryKey]::OpenBaseKey([Microsoft.Win32.RegistryHive]::CurrentUser, [Microsoft.Win32.RegistryView]::Registry64)
     try {

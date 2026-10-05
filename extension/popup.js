@@ -112,7 +112,7 @@ function renderState(state) {
   $('version').textContent = state.update?.available ? `Доступна ${state.update.version}` : `Версия ${state.currentVersion || chrome.runtime.getManifest().version}`;
   document.querySelectorAll('.app-version').forEach(e => e.textContent = state.currentVersion || chrome.runtime.getManifest().version);
   $('check-update').disabled = !!busy;
-  $('install-update').hidden = !state.update?.available || !!state.updating;
+  $('install-update').hidden = !state.update?.available || !!state.updating || !!state.enterprise;
   $('install-update').disabled = !!busy;
   $('finish-update').hidden = !state.updating;
   $('finish-update').textContent = state.updateFailed ? 'Вернуться к расширению' : 'Перезагрузить расширение';

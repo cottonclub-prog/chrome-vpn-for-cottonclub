@@ -23,3 +23,10 @@ device-id.txt
 client-config.json
 routing-preferences.json
 core-*.json
+
+# CRX signing key must never be distributed
+.keys/
+*.pem
+*.pfx
+*.p12
+*.crx

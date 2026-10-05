@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const {test} = require('node:test');
 const source = name => fs.readFileSync(path.join(__dirname, '../extension', name), 'utf8');
 
-function background(saved = {}, savedSession = {}, {localAccessLevel = true} = {}) {
+function background(saved = {}, savedSession = {}, {localAccessLevel = true, enterprise = false} = {}) {
   const listeners = {};
   const storage = {...saved};
   const accessCalls = [];
@@ -25,7 +25,7 @@ function background(saved = {}, savedSession = {}, {localAccessLevel = true} = {
     proxy: {settings: setting()},
     privacy: {network: {webRTCIPHandlingPolicy: setting(), networkPredictionEnabled: setting()}},
     alarms: {create() {}, onAlarm: {addListener() {}}},
-    runtime: {id: 'test', getManifest: () => ({version: '1.0.3'}), getURL: () => 'chrome-extension://test/',
+    runtime: {id: 'test', getManifest: () => ({version: '1.0.3', update_url:enterprise ? 'https://example.com/updates.xml' : undefined}), getURL: () => 'chrome-extension://test/',
       onMessage: {addListener(fn) { listeners.message = fn; }}, onStartup: {addListener() {}},
       connectNative() { throw new Error('Helper unavailable'); }},
   };
@@ -67,6 +67,17 @@ test('browsers supporting local.setAccessLevel restrict both storage areas', asy
     {area:'local', level:'TRUSTED_CONTEXTS'},
     {area:'session', level:'TRUSTED_CONTEXTS'},
   ]);
+});
+
+test('enterprise CRX never updates a separate unpacked extension or disconnects VPN', async () => {
+  const app = background({}, {}, {enterprise:true});
+  await app.ready;
+  vm.runInContext("desired = true; state.mode = 'on'; state.update = {available:true, version:'1.5.0'}; rpc = async () => { throw new Error('Must not launch updater'); };", app.context);
+  const result = await app.send({command:'installUpdate'});
+  assert.equal(result.enterprise, true);
+  assert.equal(result.mode, 'on');
+  assert.equal(result.updating, false);
+  assert.match(result.message, /CRX/);
 });
 
 test('restart with enabled VPN retains a blocking proxy until explicit disconnect', async () => {
