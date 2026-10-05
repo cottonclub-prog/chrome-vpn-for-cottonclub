@@ -5,7 +5,7 @@
 :root{--charcoal:#242323;--blue:#008ddd;--orange:#ff8000;background:#181818;color:#f5f5f5}
 body{background:radial-gradient(ellipse at 73% 32%,#008ddd0b,transparent 50%),#181818}
 .frame{background:var(--charcoal);border-color:#3c3b3b}
-.brand{font-size:15px;letter-spacing:1.1px;font-weight:750}
+.brand{font-size:12px;letter-spacing:0;font-weight:750;white-space:nowrap}
 .brandmark{background:var(--blue);color:#fff}
 .overline{color:#71caff}
 .caption p{color:#a3a3a3}.caption .note{border-color:#373737}

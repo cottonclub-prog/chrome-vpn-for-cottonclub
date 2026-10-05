@@ -1,13 +1,13 @@
-﻿param([switch]$VerifyOnly, [switch]$Latest, [switch]$Quiet)
+param([switch]$VerifyOnly, [switch]$Latest, [switch]$Quiet)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
 # Source ZIPs contain this bootstrap; built packages contain payload.json instead.
 # Download and verify the per-user package. No elevation or build tools needed.
-$asset = 'Chrome-vpn-for-cottonclub-hysteria2-user-Windows-x64.zip'
+$asset = 'cottonclub-vpn-for-chrome-windows-x64.zip'
 if ($Latest) {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/cottonclub-prog/chrome-vpn-for-cottonclub/releases/latest' -Headers @{ 'User-Agent'='CottonClub-Updater' } -TimeoutSec 30
+    $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/cottonclub-prog/chrome-vpn-for-cottonclub/releases/latest' -Headers @{ 'User-Agent'='cottonclub-vpn-for-chrome-updater' } -TimeoutSec 30
     if ($release.draft -or $release.prerelease -or $release.tag_name -notmatch '^v\d+\.\d+\.\d+$') { throw 'Invalid stable release.' }
     $version = $release.tag_name.Substring(1)
     $items = @($release.assets | Where-Object { $_.name -eq $asset })
@@ -20,20 +20,20 @@ if ($Latest) {
     $metadata = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'release.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 }
 if (-not $metadata.sha256) {
-    throw 'The sing-box package has not been published yet. Run Build.ps1, extract dist/Chrome-vpn-for-cottonclub-hysteria2-user-Windows-x64.zip and run Install.cmd inside it.'
+    throw 'The sing-box package has not been published yet. Run Build.ps1, extract dist/cottonclub-vpn-for-chrome-windows-x64.zip and run Install.cmd inside it.'
 }
 if ($metadata.version -notmatch '^\d+\.\d+\.\d+$' -or $metadata.sha256 -notmatch '^[0-9a-fA-F]{64}$') {
     throw 'Invalid release metadata. Download the repository again.'
 }
 $url = "https://github.com/cottonclub-prog/chrome-vpn-for-cottonclub/releases/download/v$($metadata.version)/$asset"
 $tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')
-$work = [IO.Path]::GetFullPath((Join-Path $tempRoot ('CottonClubInstall-' + [guid]::NewGuid().ToString('N'))))
+$work = [IO.Path]::GetFullPath((Join-Path $tempRoot ('cottonclub-vpn-for-chrome-install-' + [guid]::NewGuid().ToString('N'))))
 if ([IO.Path]::GetDirectoryName($work) -ne $tempRoot) { throw 'Invalid temporary directory.' }
 New-Item -ItemType Directory -Path $work | Out-Null
 try {
     $zip = Join-Path $work $asset
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    Write-Host "Downloading Chrome VPN for CottonClub $($metadata.version)..."
+    Write-Host "Downloading cottonclub vpn for chrome $($metadata.version)..."
     try {
         Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $zip -TimeoutSec 180
     } catch {
@@ -53,7 +53,7 @@ try {
         }
     } finally { $archive.Dispose() }
     Expand-Archive -LiteralPath $zip -DestinationPath $work
-    $package = Join-Path $work 'Chrome-vpn-for-cottonclub'
+    $package = Join-Path $work 'cottonclub-vpn-for-chrome'
     foreach ($required in @('Install.ps1','payload.json','extension/manifest.json')) {
         if (-not (Test-Path -LiteralPath (Join-Path $package $required) -PathType Leaf)) { throw 'Incomplete release archive.' }
     }
@@ -68,7 +68,7 @@ try {
     # Only remove the unique directory created by this invocation, never a link.
     $resolved = [IO.Path]::GetFullPath($work)
     if ([IO.Path]::GetDirectoryName($resolved) -eq $tempRoot -and
-        [IO.Path]::GetFileName($resolved) -match '^CottonClubInstall-[0-9a-f]{32}$' -and
+        [IO.Path]::GetFileName($resolved) -match '^cottonclub-vpn-for-chrome-install-[0-9a-f]{32}$' -and
         (Test-Path -LiteralPath $resolved)) {
         $links = @((Get-Item -LiteralPath $resolved), (Get-ChildItem -LiteralPath $resolved -Recurse -Force)) |
             ForEach-Object { $_ } | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint }

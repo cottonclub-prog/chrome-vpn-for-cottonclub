@@ -1,6 +1,7 @@
 """Inspect the release and exercise its EXE without installation or Chrome changes."""
 import hashlib
 import json
+import os
 from pathlib import Path
 import struct
 import subprocess
@@ -11,7 +12,7 @@ import xml.etree.ElementTree as ET
 import pefile
 
 ROOT = Path(__file__).resolve().parents[1]
-archive = ROOT / 'dist/Chrome-vpn-for-cottonclub-hysteria2-user-Windows-x64.zip'
+archive = ROOT / 'dist/cottonclub-vpn-for-chrome-windows-x64.zip'
 with tempfile.TemporaryDirectory(dir=ROOT / 'build') as directory:
     destination = Path(directory)
     with zipfile.ZipFile(archive) as z:
@@ -19,11 +20,11 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'build') as directory:
         for item in z.infolist():
             assert (destination / item.filename).resolve().is_relative_to(destination.resolve())
         z.extractall(destination)
-    package = destination / 'Chrome-vpn-for-cottonclub'
+    package = destination / 'cottonclub-vpn-for-chrome'
     entries = json.loads((package / 'payload.json').read_text(encoding='utf-8-sig'))
     for item in entries:
         assert hashlib.sha256((package / item['path']).read_bytes()).hexdigest() == item['sha256'].lower()
-    assert not list(package.rglob('Project-ZXC-for-Chrome.exe'))
+    assert {p.name for p in (package / 'host').glob('*.exe')} == {'cottonclub-vpn-for-chrome-host.exe'}
     assert {p.name for p in (package / 'host/bin').glob('*.exe')} == {'sing-box.exe'}
     assert not list(package.rglob('*xray*'))
     assert json.loads((package / 'host/routing/default-rules.json').read_text(encoding='utf-8')) == json.loads((package / 'extension/routing-defaults.json').read_text(encoding='utf-8'))
@@ -33,7 +34,7 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'build') as directory:
             str(package / 'Install.ps1'), '-VerifyOnly']
     verified = subprocess.run(args, capture_output=True, timeout=30)
     assert verified.returncode == 0, verified.stderr
-    executable = package / 'host/CottonClub-Host.exe'
+    executable = package / 'host/cottonclub-vpn-for-chrome-host.exe'
     # Windows must not elevate the shipped helper or VPN core.
     for binary in (executable, package / 'host/bin/sing-box.exe'):
         with pefile.PE(str(binary)) as pe:
@@ -79,6 +80,19 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'build') as directory:
                                timeout=20, creationflags=0x08000000)
     assert corporate.returncode == 0, corporate.stderr
     assert json.loads(corporate.stdout[4:])['ok'], 'CRX origin must be accepted'
+    # HTTPS subscription attempts must create identity only in the new app root.
+    # The closed loopback port fails without contacting any outside server.
+    identity_parent = destination / 'localappdata'
+    identity_parent.mkdir()
+    body = json.dumps({'id': 7, 'action': 'load', 'subscription': 'https://127.0.0.1:1/'}).encode()
+    checked = subprocess.run([str(executable), 'chrome-extension://hooimhadihhgfkhidbmjoaojfljafnaf/'],
+                             input=struct.pack('<I', len(body)) + body, capture_output=True, timeout=20,
+                             env={**os.environ, 'LOCALAPPDATA': str(identity_parent)}, creationflags=0x08000000)
+    assert checked.returncode == 0, checked.stderr
+    assert not json.loads(checked.stdout[4:])['ok']
+    identity = identity_parent / 'cottonclub vpn for chrome/device-id.txt'
+    assert len(identity.read_text(encoding='ascii').strip()) == 32
+    assert [p.name for p in identity_parent.iterdir()] == ['cottonclub vpn for chrome']
     # Damaged packages must fail before any Windows mutations.
     (package / 'extension/popup.js').write_text('damaged', encoding='utf-8')
     damaged = subprocess.run(args, capture_output=True, timeout=30)

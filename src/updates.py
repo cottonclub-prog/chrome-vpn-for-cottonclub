@@ -9,7 +9,7 @@ import uuid
 from urllib.request import ProxyHandler, Request, build_opener
 
 REPOSITORY = 'cottonclub-prog/chrome-vpn-for-cottonclub'
-ASSET = 'Chrome-vpn-for-cottonclub-hysteria2-user-Windows-x64.zip'
+ASSET = 'cottonclub-vpn-for-chrome-windows-x64.zip'
 
 
 def version_tuple(value):
@@ -37,7 +37,7 @@ def parse_release(release, current):
 def check_update(current):
     try:
         request = Request(f'https://api.github.com/repos/{REPOSITORY}/releases/latest',
-                          headers={'User-Agent': 'CottonClub-Updater', 'Accept': 'application/vnd.github+json'})
+                          headers={'User-Agent': 'cottonclub-vpn-for-chrome-updater', 'Accept': 'application/vnd.github+json'})
         with build_opener(ProxyHandler({})).open(request, timeout=15) as response:
             body = response.read(2 * 1024 * 1024 + 1)
         if len(body) > 2 * 1024 * 1024:
@@ -50,8 +50,8 @@ def check_update(current):
 def launch_update():
     if os.name != 'nt' or not getattr(sys, 'frozen', False):
         raise RuntimeError('Обновление доступно после установки готового комплекта.')
-    base = Path(sys.executable).resolve().parents[3]
-    expected = Path(os.environ['LOCALAPPDATA']) / 'Chrome VPN for CottonClub'
+    base = Path(sys.executable).resolve().parents[1]
+    expected = Path(os.environ['LOCALAPPDATA']) / 'cottonclub vpn for chrome'
     script = base / 'Update.ps1'
     if base != expected.resolve() or not script.is_file():
         raise RuntimeError('Файлы обновления не найдены. Запустите Install.cmd из свежего репозитория.')

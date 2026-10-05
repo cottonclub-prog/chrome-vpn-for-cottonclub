@@ -1,13 +1,14 @@
 """A persistent random installation identifier for subscription device limits."""
-import os
 from pathlib import Path
 import platform
 import uuid
 
+from app_paths import APP_DIRECTORY, APP_NAME
+
 
 def device_id(directory=None):
     if directory is None:
-        directory = Path(os.environ['LOCALAPPDATA']) / 'ZXC-Desktop'
+        directory = APP_DIRECTORY
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / 'device-id.txt'
@@ -26,10 +27,10 @@ def device_id(directory=None):
 
 def subscription_headers():
     return {
-        'User-Agent': 'ZXC-Desktop/0.2',
+        'User-Agent': 'cottonclub-vpn-for-chrome/1.6.0',
         'Accept': 'text/plain',
         'X-Hwid': device_id(),
         'X-Device-Os': 'Windows',
         'X-Ver-Os': platform.release(),
-        'X-Device-Model': 'ZXC Desktop',
+        'X-Device-Model': APP_NAME,
     }

@@ -1,4 +1,4 @@
-﻿param([switch]$SkipDownload)
+param([switch]$SkipDownload)
 $ErrorActionPreference = 'Stop'
 Push-Location (Join-Path $PSScriptRoot 'src')
 try {
@@ -17,11 +17,11 @@ try {
     }
     $stamp = [guid]::NewGuid().ToString('N')
     $output = Join-Path $PSScriptRoot "build/$stamp"
-    & ./.venv/Scripts/python.exe -m PyInstaller --noconfirm --clean --onedir --console --hide-console hide-early --hidden-import socks --name CottonClub-Host --distpath $output native_host.py
+    & ./.venv/Scripts/python.exe -m PyInstaller --noconfirm --clean --onedir --console --hide-console hide-early --hidden-import socks --name cottonclub-vpn-for-chrome-host --distpath $output native_host.py
     if ($LASTEXITCODE) { throw 'Native host build failed' }
-    $package = Join-Path $PSScriptRoot "dist/$stamp/Chrome-vpn-for-cottonclub"
+    $package = Join-Path $PSScriptRoot "dist/$stamp/cottonclub-vpn-for-chrome"
     New-Item -ItemType Directory -Path $package -Force | Out-Null
-    Copy-Item (Join-Path $output 'CottonClub-Host') (Join-Path $package 'host') -Recurse
+    Copy-Item (Join-Path $output 'cottonclub-vpn-for-chrome-host') (Join-Path $package 'host') -Recurse
     Copy-Item routing (Join-Path $package 'host') -Recurse
     Copy-Item (Join-Path $PSScriptRoot 'extension/routing-defaults.json') (Join-Path $package 'host/routing/default-rules.json')
     $coreDirectory = Join-Path $package 'host/bin'
@@ -36,8 +36,21 @@ try {
         @{ path = $_.FullName.Substring($package.Length + 1); sha256 = (Get-FileHash $_.FullName -Algorithm SHA256).Hash }
     })
     $hashes | ConvertTo-Json | Set-Content (Join-Path $package 'payload.json') -Encoding UTF8
-    $archive = Join-Path $PSScriptRoot 'dist/Chrome-vpn-for-cottonclub-hysteria2-user-Windows-x64.zip'
+    $archive = Join-Path $PSScriptRoot 'dist/cottonclub-vpn-for-chrome-windows-x64.zip'
     Compress-Archive -Path $package -DestinationPath $archive -Force
+    # Older installed updaters require their original asset name and ZIP root.
+    # This compatibility archive only reports the required manual migration.
+    @'
+from pathlib import Path
+from zipfile import ZipFile, ZIP_DEFLATED
+source = Path('../dist/cottonclub-vpn-for-chrome-windows-x64.zip')
+target = source.with_name('Chrome-vpn-for-cottonclub-hysteria2-user-Windows-x64.zip')
+with ZipFile(source) as incoming, ZipFile(target, 'w', ZIP_DEFLATED) as outgoing:
+    for entry in incoming.infolist():
+        name = entry.filename.replace('cottonclub-vpn-for-chrome/', 'Chrome-vpn-for-cottonclub/', 1)
+        outgoing.writestr(name, incoming.read(entry))
+'@ | & ./.venv/Scripts/python.exe -B -
+    if ($LASTEXITCODE) { throw 'Compatibility package failed' }
     $manifest = Get-Content (Join-Path $package 'extension/manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     @{ version = $manifest.version; sha256 = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower() } |
         ConvertTo-Json | Set-Content (Join-Path $PSScriptRoot 'dist/release.json') -Encoding UTF8

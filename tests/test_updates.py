@@ -66,7 +66,7 @@ class UpdateTests(unittest.TestCase):
 
     def test_helper_outside_user_install_cannot_start_updater(self):
         with tempfile.TemporaryDirectory() as directory:
-            executable = Path(directory) / 'other/releases/test/host/CottonClub-Host.exe'
+            executable = Path(directory) / 'other/releases/test/host/cottonclub-vpn-for-chrome-host.exe'
             with patch('updates.sys.frozen', True, create=True), patch('updates.sys.executable', str(executable)), \
                     patch.dict('os.environ', {'LOCALAPPDATA': directory}), patch('updates.subprocess.Popen') as popen:
                 with self.assertRaises(RuntimeError):
@@ -75,8 +75,8 @@ class UpdateTests(unittest.TestCase):
 
     def test_installed_helper_launches_only_fixed_updater_and_passes_its_pid(self):
         with tempfile.TemporaryDirectory() as directory:
-            base = Path(directory) / 'Chrome VPN for CottonClub'
-            executable = base / 'releases/test/host/CottonClub-Host.exe'
+            base = Path(directory) / 'cottonclub vpn for chrome'
+            executable = base / 'host/cottonclub-vpn-for-chrome-host.exe'
             executable.parent.mkdir(parents=True)
             (base / 'extension').mkdir()
             (base / 'Update.ps1').write_text('# test', encoding='utf-8')

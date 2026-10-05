@@ -34,7 +34,7 @@ class UserInstallTests(unittest.TestCase):
         host = re.search(r"const HOST = '([^']+)'", source)[1]
         self.assertEqual(host, HOST_NAME)
         self.assertEqual(HOST_NAME, 'com.cottonclub.hysteria2')
-        self.assertNotIn('com.projectzxc.admin', source)
+        self.assertEqual(source.count('const HOST = '), 1)
         manifest = json.loads((ROOT / 'extension/manifest.json').read_text(encoding='utf-8'))
         self.assertIn('nativeMessaging', manifest['permissions'])
         self.assertIn(EXTENSION_ID, (ROOT / 'Install.ps1').read_text(encoding='utf-8-sig'))

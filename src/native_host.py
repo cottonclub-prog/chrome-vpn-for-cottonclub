@@ -46,7 +46,7 @@ def read_message(stream):
 class Host:
     def __init__(self, output, core=None):
         self.output = output
-        self.core = core or Core(data=DATA / 'extension', port=EXTENSION_PORT)
+        self.core = core or Core(data=DATA, port=EXTENSION_PORT)
         self.lock = threading.RLock()
         self.output_lock = threading.Lock()
         self.nodes = []

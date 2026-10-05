@@ -8,6 +8,6 @@ try {
         Start-Process explorer.exe -ArgumentList ('"' + (Join-Path $PSScriptRoot 'extension') + '"')
 } catch {
     Add-Type -AssemblyName System.Windows.Forms
-    [Windows.Forms.MessageBox]::Show($_.Exception.Message, 'Chrome VPN for CottonClub') | Out-Null
+    [Windows.Forms.MessageBox]::Show($_.Exception.Message, 'cottonclub vpn for chrome') | Out-Null
     exit 1
 }

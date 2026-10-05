@@ -7,7 +7,7 @@ import pefile
 
 ROOT = Path(__file__).resolve().parents[1]
 version = json.loads((ROOT / 'extension/manifest.json').read_text(encoding='utf-8'))['version']
-setup = ROOT / 'dist' / f'COTTONCLUB-VPN-Setup-{version}.exe'
+setup = ROOT / 'dist' / f'cottonclub-vpn-for-chrome-setup-{version}.exe'
 with pefile.PE(str(setup)) as pe:
     levels = []
     for resource in pe.DIRECTORY_ENTRY_RESOURCE.entries:
@@ -21,7 +21,7 @@ with pefile.PE(str(setup)) as pe:
 result = subprocess.run([str(setup), '--verify-only'], timeout=180, creationflags=0x08000000)
 assert result.returncode == 0, 'EXE embedded payload verification failed'
 identity = json.loads((ROOT / 'installer/crx-identity.json').read_text(encoding='utf-8'))
-subprocess.run(['node', str(ROOT / 'installer/verify-crx.cjs'), str(ROOT / 'dist/COTTONCLUB-VPN.crx'), identity['id']], check=True)
+subprocess.run(['node', str(ROOT / 'installer/verify-crx.cjs'), str(ROOT / 'dist/cottonclub-vpn-for-chrome.crx'), identity['id']], check=True)
 update = ET.fromstring((ROOT / 'dist/updates.xml').read_text(encoding='utf-8'))
 app = update.find('{http://www.google.com/update2/response}app')
 assert app.get('appid') == identity['id']

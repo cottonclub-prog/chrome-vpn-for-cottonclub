@@ -1,6 +1,78 @@
-﻿param([switch]$VerifyOnly, [switch]$Quiet)
+param([switch]$VerifyOnly, [switch]$Quiet, [switch]$AllowMigration)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+function Test-InstallDirectory([string]$Path, [string]$Parent, [string]$Name) {
+    $resolved = [IO.Path]::GetFullPath($Path).TrimEnd('\')
+    if ([IO.Path]::GetDirectoryName($resolved) -ne [IO.Path]::GetFullPath($Parent).TrimEnd('\') -or [IO.Path]::GetFileName($resolved) -ne $Name) { throw 'Invalid installation directory' }
+    if (Test-Path -LiteralPath $resolved) {
+        if ((Get-Item -LiteralPath $resolved).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Installation directory must not be a link.' }
+        if (Get-ChildItem -LiteralPath $resolved -Recurse -Force | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint }) { throw 'Installation contents must not contain links.' }
+    }
+}
+function Install-ApplicationFiles([string]$Package, [string]$Parent) {
+    $base = Join-Path $Parent 'cottonclub vpn for chrome'
+    $previous = Join-Path $Parent 'Chrome VPN for CottonClub'
+    # Previous names are read only for a one-time migration, never created.
+    $identityDirectory = Join-Path $Parent 'ZXC-Desktop'
+    $runtimeDirectory = Join-Path $Parent 'CottonClub-Hysteria2'
+    Test-InstallDirectory $base $Parent 'cottonclub vpn for chrome'
+    Test-InstallDirectory $previous $Parent 'Chrome VPN for CottonClub'
+    Test-InstallDirectory $identityDirectory $Parent 'ZXC-Desktop'
+    Test-InstallDirectory $runtimeDirectory $Parent 'CottonClub-Hysteria2'
+    foreach ($process in @(Get-Process cottonclub-vpn-for-chrome-host,CottonClub-Host,sing-box -ErrorAction SilentlyContinue)) {
+        if ($process.Path -and ($process.Path.StartsWith($base + '\', [StringComparison]::OrdinalIgnoreCase) -or $process.Path.StartsWith($previous + '\', [StringComparison]::OrdinalIgnoreCase))) { throw 'Disable cottonclub vpn for chrome in chrome://extensions before updating, then run Install.cmd again.' }
+    }
+    if ((Test-Path -LiteralPath $previous) -and (Test-Path -LiteralPath $base)) { throw 'Both old and new installation directories exist. Keep the installation you use before retrying.' }
+    $identity = Join-Path $identityDirectory 'device-id.txt'
+    if (Test-Path -LiteralPath $identity) {
+        $savedIdentity = [IO.File]::ReadAllText($identity).Trim()
+        if ($savedIdentity -cnotmatch '^[a-f0-9]{32}$') { throw 'Invalid saved device identifier; migration cancelled.' }
+    }
+    foreach ($installation in @($base, $previous)) {
+        $existingIdentity = Join-Path $installation 'device-id.txt'
+        if ((Test-Path -LiteralPath $existingIdentity) -and [IO.File]::ReadAllText($existingIdentity).Trim() -cnotmatch '^[a-f0-9]{32}$') { throw 'Invalid saved device identifier; migration cancelled.' }
+    }
+    if (Test-Path -LiteralPath $previous) { Move-Item -LiteralPath $previous -Destination $base }
+    New-Item -ItemType Directory -Path $base -Force | Out-Null
+    $device = Join-Path $base 'device-id.txt'
+    if ($savedIdentity -and -not (Test-Path -LiteralPath $device)) { [IO.File]::WriteAllText($device, $savedIdentity, [Text.Encoding]::ASCII) }
+    $previousProfile = Join-Path $runtimeDirectory 'chrome-profile'
+    if ((Test-Path -LiteralPath $previousProfile) -and -not (Test-Path -LiteralPath (Join-Path $base 'chrome-profile'))) { Move-Item -LiteralPath $previousProfile -Destination (Join-Path $base 'chrome-profile') }
+    # The helper is stopped above; a fixed host directory avoids release accumulation.
+    Copy-Item -LiteralPath (Join-Path $Package 'host') -Destination $base -Recurse -Force
+    Copy-Item -LiteralPath (Join-Path $Package 'extension') -Destination $base -Recurse -Force
+    [IO.File]::WriteAllText((Join-Path $base 'extension/managed-install.json'), '{"managed":true}', [Text.UTF8Encoding]::new($false))
+    foreach ($file in @('Launch.ps1','Uninstall.cmd','Uninstall.ps1','Bootstrap.ps1','Update.ps1','README.md')) { Copy-Item -LiteralPath (Join-Path $Package $file) -Destination $base -Force }
+    return $base
+}
+function Remove-PreviousApplicationFiles([string]$Base, [string]$Parent) {
+    Test-InstallDirectory $Base $Parent 'cottonclub vpn for chrome'
+    # Delete only recognizable generated releases belonging to this installation.
+    $releases = Join-Path $Base 'releases'
+    if (Test-Path -LiteralPath $releases) {
+        foreach ($release in @(Get-ChildItem -LiteralPath $releases -Directory)) {
+            $registration = Join-Path $release.FullName 'com.cottonclub.hysteria2.json'
+            if ($release.Name -match '^[a-f0-9]{32}$' -and (Test-Path -LiteralPath $registration)) {
+                $metadata = Get-Content -LiteralPath $registration -Raw -Encoding UTF8 | ConvertFrom-Json
+                if ($metadata.name -eq 'com.cottonclub.hysteria2' -and (Test-Path -LiteralPath (Join-Path $release.FullName 'host/CottonClub-Host.exe'))) { Remove-Item -LiteralPath $release.FullName -Recurse -Force }
+            }
+        }
+        if (-not (Get-ChildItem -LiteralPath $releases -Force)) { Remove-Item -LiteralPath $releases }
+    }
+    $identityDirectory = Join-Path $Parent 'ZXC-Desktop'
+    Test-InstallDirectory $identityDirectory $Parent 'ZXC-Desktop'
+    $identity = Join-Path $identityDirectory 'device-id.txt'
+    $device = Join-Path $Base 'device-id.txt'
+    if ((Test-Path -LiteralPath $identity) -and (Test-Path -LiteralPath $device) -and [IO.File]::ReadAllText($identity).Trim() -ceq [IO.File]::ReadAllText($device).Trim()) {
+        Remove-Item -LiteralPath $identity
+        if (-not (Get-ChildItem -LiteralPath $identityDirectory -Force)) { Remove-Item -LiteralPath $identityDirectory }
+    }
+    $runtimeDirectory = Join-Path $Parent 'CottonClub-Hysteria2'
+    Test-InstallDirectory $runtimeDirectory $Parent 'CottonClub-Hysteria2'
+    $previousTemporary = Join-Path $runtimeDirectory 'extension'
+    if ((Test-Path -LiteralPath $previousTemporary) -and -not (Get-ChildItem -LiteralPath $previousTemporary -Force)) { Remove-Item -LiteralPath $previousTemporary }
+    if ((Test-Path -LiteralPath $runtimeDirectory) -and -not (Get-ChildItem -LiteralPath $runtimeDirectory -Force)) { Remove-Item -LiteralPath $runtimeDirectory }
+}
 function Test-Package {
     if (-not (Test-Path (Join-Path $PSScriptRoot 'payload.json'))) { throw 'Run Install.cmd from the built ZIP in dist, not the source folder.' }
     $files = Get-Content (Join-Path $PSScriptRoot 'payload.json') -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -12,7 +84,7 @@ function Test-Package {
         $listed[$source] = $true
         if ((Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash -ne $item.sha256) { throw "Damaged package: $($item.path)" }
     }
-    foreach ($required in @('host/CottonClub-Host.exe','host/bin/sing-box.exe','extension/manifest.json','Install.ps1','Launch.ps1','Uninstall.ps1','Uninstall.cmd','README.md')) {
+    foreach ($required in @('host/cottonclub-vpn-for-chrome-host.exe','host/bin/sing-box.exe','extension/manifest.json','Install.ps1','Launch.ps1','Uninstall.ps1','Uninstall.cmd','README.md')) {
         if (-not $listed.ContainsKey([IO.Path]::GetFullPath((Join-Path $PSScriptRoot $required)))) { throw "Incomplete package: $required" }
     }
     foreach ($entry in (Get-ChildItem -LiteralPath $PSScriptRoot -Recurse -Force)) {
@@ -36,53 +108,45 @@ try {
     }
     $manifest = Test-Package
     if ($VerifyOnly) { Write-Host 'Package verified; no system changes made.'; return }
-    $base = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Chrome VPN for CottonClub'
-    if ((Test-Path $base) -and ((Get-Item $base).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Installation directory must not be a link.' }
-    if ((Test-Path $base) -and (Get-ChildItem $base -Recurse -Force | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint })) { throw 'Installation contents must not contain links.' }
-    foreach ($process in @(Get-Process CottonClub-Host -ErrorAction SilentlyContinue)) {
-        if ($process.Path -and $process.Path.StartsWith($base + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'Disable Chrome VPN for CottonClub in chrome://extensions before updating, then run Install.cmd again.' }
-    }
-    $release = Join-Path $base ('releases/' + [guid]::NewGuid().ToString('N'))
-    # Unique releases avoid overwriting helper binaries during updates.
-    New-Item -ItemType Directory -Path $release -Force | Out-Null
-    Copy-Item (Join-Path $PSScriptRoot 'host') $release -Recurse
-    # Preserve the unpacked extension path across updates.
-    Copy-Item (Join-Path $PSScriptRoot 'extension') $base -Recurse -Force
-    # Only the managed Chrome extension directory can update itself in place.
-    [IO.File]::WriteAllText((Join-Path $base 'extension/managed-install.json'), '{"managed":true}', [Text.UTF8Encoding]::new($false))
-    foreach ($file in @('Launch.ps1','Uninstall.cmd','Uninstall.ps1','Bootstrap.ps1','Update.ps1','README.md')) { Copy-Item (Join-Path $PSScriptRoot $file) $base -Force }
+    $parent = [Environment]::GetFolderPath('LocalApplicationData')
+    if ($Quiet -and -not $AllowMigration -and (Test-Path -LiteralPath (Join-Path $parent 'Chrome VPN for CottonClub'))) { throw 'The installation folder has changed. Run the new cottonclub-vpn-for-chrome EXE or Install.cmd manually, then load %LOCALAPPDATA%\cottonclub vpn for chrome\extension in chrome://extensions without removing the extension.' }
+    $base = Install-ApplicationFiles $PSScriptRoot $parent
     $id = 'hooimhadihhgfkhidbmjoaojfljafnaf'
-    $hostPath = Join-Path $release 'com.cottonclub.hysteria2.json'
-    $hostJson = @{name='com.cottonclub.hysteria2'; description='COTTONCLUB VPN'; path=(Join-Path $release 'host/CottonClub-Host.exe'); type='stdio'; allowed_origins=@("chrome-extension://$id/", 'chrome-extension://pppgaipmgmbndhejmkabemifkonbgooh/')} | ConvertTo-Json
+    $hostPath = Join-Path $base 'com.cottonclub.hysteria2.json'
+    $hostJson = @{name='com.cottonclub.hysteria2'; description='cottonclub vpn for chrome'; path=(Join-Path $base 'host/cottonclub-vpn-for-chrome-host.exe'); type='stdio'; allowed_origins=@("chrome-extension://$id/", 'chrome-extension://pppgaipmgmbndhejmkabemifkonbgooh/')} | ConvertTo-Json
     [IO.File]::WriteAllText($hostPath, $hostJson, [Text.UTF8Encoding]::new($false))
     $hkcu = [Microsoft.Win32.RegistryKey]::OpenBaseKey([Microsoft.Win32.RegistryHive]::CurrentUser, [Microsoft.Win32.RegistryView]::Registry64)
     try {
         $key = $hkcu.CreateSubKey('Software\Google\Chrome\NativeMessagingHosts\com.cottonclub.hysteria2')
         try { $key.SetValue('', $hostPath) } finally { $key.Close() }
-        $uninstall = $hkcu.CreateSubKey('Software\Microsoft\Windows\CurrentVersion\Uninstall\CottonClubHysteria2')
+        $uninstall = $hkcu.CreateSubKey('Software\Microsoft\Windows\CurrentVersion\Uninstall\CottonClubVpnForChrome')
         try {
-            $uninstall.SetValue('DisplayName', 'Chrome VPN for CottonClub (Hysteria 2, current user)')
+            $uninstall.SetValue('DisplayName', 'cottonclub vpn for chrome')
             $uninstall.SetValue('DisplayVersion', $manifest.version)
             $uninstall.SetValue('InstallLocation', $base)
             $uninstall.SetValue('UninstallString', 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $base 'Uninstall.ps1') + '"')
         } finally { $uninstall.Close() }
+        $hkcu.DeleteSubKeyTree('Software\Microsoft\Windows\CurrentVersion\Uninstall\CottonClubHysteria2', $false)
     } finally { $hkcu.Close() }
     $shell = New-Object -ComObject WScript.Shell
     foreach ($folder in @([Environment]::GetFolderPath('DesktopDirectory'), [Environment]::GetFolderPath('Programs'))) {
-        $shortcut = $shell.CreateShortcut((Join-Path $folder 'CottonClub Hysteria 2.lnk'))
+        $previousShortcut = Join-Path $folder 'CottonClub Hysteria 2.lnk'
+        if (Test-Path -LiteralPath $previousShortcut) { Remove-Item -LiteralPath $previousShortcut }
+        $shortcut = $shell.CreateShortcut((Join-Path $folder 'cottonclub vpn for chrome.lnk'))
         $shortcut.TargetPath = Join-Path $env:WINDIR 'System32/WindowsPowerShell/v1.0/powershell.exe'
         $shortcut.Arguments = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + (Join-Path $base 'Launch.ps1') + '"'
         $shortcut.WindowStyle = 7
         $shortcut.WorkingDirectory = $base
         $shortcut.Save()
     }
+    Remove-PreviousApplicationFiles $base $parent
     if ($Quiet) { Write-Host "Installed version $($manifest.version)."; return }
     Add-Type -AssemblyName System.Windows.Forms
-    $message = "Installed for your Windows account, without administrator rights. In chrome://extensions enable Developer mode, click Load unpacked and select:`n$base\extension`nOn update, reload the existing extension."
-    [Windows.Forms.MessageBox]::Show($message, 'Chrome VPN for CottonClub') | Out-Null
+    $message = "Installed for your Windows account, without administrator rights. In chrome://extensions enable Developer mode, click Load unpacked and select:`n$base\extension`nAfter migrating from an earlier version, select this new folder without removing the extension. Later updates only need a reload."
+    [Windows.Forms.MessageBox]::Show($message, 'cottonclub vpn for chrome') | Out-Null
 } catch {
     if ($VerifyOnly -or $Quiet) { throw }
     Add-Type -AssemblyName System.Windows.Forms
-    [Windows.Forms.MessageBox]::Show($_.Exception.Message, 'Chrome VPN for CottonClub installation failed') | Out-Null
+    [Windows.Forms.MessageBox]::Show($_.Exception.Message, 'cottonclub vpn for chrome installation failed') | Out-Null
     throw
 }

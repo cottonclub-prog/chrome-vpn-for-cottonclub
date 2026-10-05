@@ -13,11 +13,12 @@ import threading
 
 from subscription import make_config
 from diagnostics import CoreDiagnostics, ConnectionCheckError, check_error_message
+from app_paths import APP_DIRECTORY
 
 PORT = 17890
 CREATE_NO_WINDOW = 0x08000000 if os.name == 'nt' else 0
 ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent
-DATA = Path(os.environ.get('LOCALAPPDATA', str(ROOT))) / 'CottonClub-Hysteria2'
+DATA = APP_DIRECTORY
 
 
 class KillOnCloseJob:

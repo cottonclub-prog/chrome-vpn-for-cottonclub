@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parent
 
 
 def get(url):
-    request = urllib.request.Request(url, headers={'User-Agent': 'ZXC-Desktop-build'})
+    request = urllib.request.Request(url, headers={'User-Agent': 'cottonclub-vpn-for-chrome-build'})
     with urllib.request.urlopen(request, timeout=60) as response:
         return response.read()
 
