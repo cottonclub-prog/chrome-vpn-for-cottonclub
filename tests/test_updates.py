@@ -75,17 +75,17 @@ class UpdateTests(unittest.TestCase):
 
     def test_installed_helper_launches_only_fixed_updater_and_passes_its_pid(self):
         with tempfile.TemporaryDirectory() as directory:
-            base = Path(directory) / 'cottonclub vpn for chrome'
+            base = Path(directory) / 'CottonClub VPN for Chrome'
             executable = base / 'host/cottonclub-vpn-for-chrome-host.exe'
             executable.parent.mkdir(parents=True)
-            (base / 'extension').mkdir()
+            (base / 'CottonClub VPN for Chrome').mkdir()
             (base / 'Update.ps1').write_text('# test', encoding='utf-8')
             with patch('updates.sys.frozen', True, create=True), patch('updates.sys.executable', str(executable)), \
                     patch.dict('os.environ', {'LOCALAPPDATA': directory}), patch('updates.os.getpid', return_value=123), \
                     patch('updates.subprocess.Popen') as popen:
                 result = launch_update()
                 self.assertTrue(result['started'])
-                status = json.loads((base / 'extension/update-status.json').read_text(encoding='utf-8'))
+                status = json.loads((base / 'CottonClub VPN for Chrome/update-status.json').read_text(encoding='utf-8'))
                 self.assertEqual(status, {'id': result['id'], 'phase': 'starting'})
                 arguments = popen.call_args.args[0]
                 self.assertEqual(arguments[-5:], [str(base / 'Update.ps1'), '-WaitForHostPid', '123', '-UpdateId', result['id']])

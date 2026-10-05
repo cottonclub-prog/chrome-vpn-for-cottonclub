@@ -11,7 +11,7 @@ browser = Path(os.environ.get('ProgramFiles', r'C:\Program Files')) / 'Google/Ch
 fixture = ROOT / 'build' / ('popup-ui-' + uuid.uuid4().hex)
 fixture.mkdir(parents=True)
 for name in ('popup.css', 'popup.js', 'routing-defaults.json'):
-    shutil.copyfile(ROOT / 'extension' / name, fixture / name)
+    shutil.copyfile(ROOT / 'CottonClub VPN for Chrome' / name, fixture / name)
 defaults = json.loads((fixture / 'routing-defaults.json').read_text(encoding='utf-8'))
 script = r'''const initialRules = DEFAULTS;
 const state = {mode:'off',nodes:[],selected:0,routingMode:'ru-direct',routingRules:structuredClone(initialRules),currentVersion:'1.4.0',subscription:'https://example.com/sub'};
@@ -66,7 +66,7 @@ window.addEventListener('load',async()=>{
 });
 '''.replace('DEFAULTS',json.dumps(defaults))
 (fixture/'fixture.js').write_text(script,encoding='utf-8')
-html=(ROOT/'extension/popup.html').read_text(encoding='utf-8').replace('<script src="popup.js">','<script src="fixture.js"></script><script src="popup.js">')
+html=(ROOT/'CottonClub VPN for Chrome/popup.html').read_text(encoding='utf-8').replace('<script src="popup.js">','<script src="fixture.js"></script><script src="popup.js">')
 (fixture/'popup.html').write_text(html,encoding='utf-8')
 result=subprocess.run([str(browser),'--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check','--allow-file-access-from-files','--user-data-dir='+str(fixture/'profile'),'--window-size=800,800','--virtual-time-budget=4000','--dump-dom','--screenshot='+str(fixture/'popup.png'),(fixture/'popup.html').as_uri()],capture_output=True,timeout=60,creationflags=0x08000000)
 dom=result.stdout.decode('utf-8',errors='replace')

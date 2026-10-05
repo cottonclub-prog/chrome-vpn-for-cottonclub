@@ -8,7 +8,7 @@ import sys
 import uuid
 from urllib.request import ProxyHandler, Request, build_opener
 
-REPOSITORY = 'cottonclub-prog/chrome-vpn-for-cottonclub'
+REPOSITORY = 'cottonclub-prog/cottonclub-vpn-for-chrome'
 ASSET = 'cottonclub-vpn-for-chrome-windows-x64.zip'
 
 
@@ -51,13 +51,13 @@ def launch_update():
     if os.name != 'nt' or not getattr(sys, 'frozen', False):
         raise RuntimeError('Обновление доступно после установки готового комплекта.')
     base = Path(sys.executable).resolve().parents[1]
-    expected = Path(os.environ['LOCALAPPDATA']) / 'cottonclub vpn for chrome'
+    expected = Path(os.environ['LOCALAPPDATA']) / 'CottonClub VPN for Chrome'
     script = base / 'Update.ps1'
     if base != expected.resolve() or not script.is_file():
         raise RuntimeError('Файлы обновления не найдены. Запустите Install.cmd из свежего репозитория.')
     powershell = Path(os.environ['SystemRoot']) / 'System32/WindowsPowerShell/v1.0/powershell.exe'
     request_id = uuid.uuid4().hex
-    status = base / 'extension/update-status.json'
+    status = base / 'CottonClub VPN for Chrome/update-status.json'
     status.write_text(json.dumps({'id': request_id, 'phase': 'starting'}), encoding='utf-8')
     # Keep startup errors: a successfully created process is not a completed update.
     with (base / 'update.log').open('wb') as log:

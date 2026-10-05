@@ -123,13 +123,13 @@ internal sealed class SetupForm : Form
 
     internal SetupForm()
     {
-        Text = "cottonclub vpn for chrome — установка"; ClientSize = new Size(540, 370);
+        Text = "CottonClub VPN for Chrome — установка"; ClientSize = new Size(540, 370);
         FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Color.FromArgb(36, 35, 35); ForeColor = Color.White;
         Font = new Font("Segoe UI", 10);
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
-        var heading = new Label { Text = "cottonclub vpn for chrome", Font = new Font("Segoe UI", 18, FontStyle.Bold), Location = new Point(30, 25), AutoSize = true };
+        var heading = new Label { Text = "CottonClub VPN for Chrome", Font = new Font("Segoe UI", 18, FontStyle.Bold), Location = new Point(30, 25), AutoSize = true };
         var description = new Label { Text = "Hysteria 2 · sing-box\r\nУстановка для текущего пользователя без прав администратора.", Location = new Point(32, 80), Size = new Size(475, 55), ForeColor = Color.LightGray };
         status.Text = "Перед обновлением отключите VPN и выключите расширение в Chrome.";
         status.Location = new Point(32, 150); status.Size = new Size(475, 64);
@@ -145,14 +145,14 @@ internal sealed class SetupForm : Form
         worker.ProgressChanged += (s, e) => { progress.Value = e.ProgressPercentage; status.Text = (string)e.UserState; };
         worker.RunWorkerCompleted += (s, e) => {
             action.Enabled = true;
-            if (e.Error != null) { status.Text = "Установка не завершена. Можно повторить попытку."; MessageBox.Show(this, e.Error.Message, "cottonclub vpn for chrome", MessageBoxButtons.OK, MessageBoxIcon.Error); return; }
+            if (e.Error != null) { status.Text = "Установка не завершена. Можно повторить попытку."; MessageBox.Show(this, e.Error.Message, "CottonClub VPN for Chrome", MessageBoxButtons.OK, MessageBoxIcon.Error); return; }
             installed = true; action.Text = "Закрыть";
             status.Text = "Готово. В chrome://extensions загрузите установленную папку или перезагрузите существующее расширение. CRX устанавливается через корпоративную политику.";
         };
         action.Click += (s, e) => {
             if (!installed) { action.Enabled = false; worker.RunWorkerAsync(); return; }
             if (openChrome.Checked) {
-                string script = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "cottonclub vpn for chrome", "Launch.ps1");
+                string script = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CottonClub VPN for Chrome", "Launch.ps1");
                 var info = new ProcessStartInfo("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"" + script + "\"") { UseShellExecute = false, CreateNoWindow = true };
                 Process.Start(info);
             }

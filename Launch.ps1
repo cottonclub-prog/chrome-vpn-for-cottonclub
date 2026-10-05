@@ -5,9 +5,9 @@ try {
         $chrome = @("$env:ProgramFiles\Google\Chrome\Application\chrome.exe", "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe", "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
         if (-not $chrome) { throw 'Google Chrome is not installed. Install Google Chrome and open this shortcut again.' }
         Start-Process -FilePath $chrome -ArgumentList 'chrome://extensions'
-        Start-Process explorer.exe -ArgumentList ('"' + (Join-Path $PSScriptRoot 'extension') + '"')
+        Start-Process explorer.exe -ArgumentList ('"' + (Join-Path $PSScriptRoot 'CottonClub VPN for Chrome') + '"')
 } catch {
     Add-Type -AssemblyName System.Windows.Forms
-    [Windows.Forms.MessageBox]::Show($_.Exception.Message, 'cottonclub vpn for chrome') | Out-Null
+    [Windows.Forms.MessageBox]::Show($_.Exception.Message, 'CottonClub VPN for Chrome') | Out-Null
     exit 1
 }

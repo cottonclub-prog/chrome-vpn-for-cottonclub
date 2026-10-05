@@ -2,5 +2,5 @@
 import os
 from pathlib import Path
 
-APP_NAME = 'cottonclub vpn for chrome'
+APP_NAME = 'CottonClub VPN for Chrome'
 APP_DIRECTORY = Path(os.environ.get('LOCALAPPDATA', str(Path(__file__).resolve().parent))) / APP_NAME

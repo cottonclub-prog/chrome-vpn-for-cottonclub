@@ -27,7 +27,7 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'build') as directory:
     assert {p.name for p in (package / 'host').glob('*.exe')} == {'cottonclub-vpn-for-chrome-host.exe'}
     assert {p.name for p in (package / 'host/bin').glob('*.exe')} == {'sing-box.exe'}
     assert not list(package.rglob('*xray*'))
-    assert json.loads((package / 'host/routing/default-rules.json').read_text(encoding='utf-8')) == json.loads((package / 'extension/routing-defaults.json').read_text(encoding='utf-8'))
+    assert json.loads((package / 'host/routing/default-rules.json').read_text(encoding='utf-8')) == json.loads((package / 'CottonClub VPN for Chrome/routing-defaults.json').read_text(encoding='utf-8'))
     policy = json.loads((package / 'host/routing/ru-direct.json').read_text(encoding='utf-8'))
     assert not any(policy[key] for key in ('domain', 'domain_suffix', 'domain_regex', 'domain_keyword'))
     args = ['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
@@ -90,11 +90,11 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'build') as directory:
                              env={**os.environ, 'LOCALAPPDATA': str(identity_parent)}, creationflags=0x08000000)
     assert checked.returncode == 0, checked.stderr
     assert not json.loads(checked.stdout[4:])['ok']
-    identity = identity_parent / 'cottonclub vpn for chrome/device-id.txt'
+    identity = identity_parent / 'CottonClub VPN for Chrome/device-id.txt'
     assert len(identity.read_text(encoding='ascii').strip()) == 32
-    assert [p.name for p in identity_parent.iterdir()] == ['cottonclub vpn for chrome']
+    assert [p.name for p in identity_parent.iterdir()] == ['CottonClub VPN for Chrome']
     # Damaged packages must fail before any Windows mutations.
-    (package / 'extension/popup.js').write_text('damaged', encoding='utf-8')
+    (package / 'CottonClub VPN for Chrome/popup.js').write_text('damaged', encoding='utf-8')
     damaged = subprocess.run(args, capture_output=True, timeout=30)
     assert damaged.returncode != 0
 print('ZIP CRC, hashes, installer verification/rejection, EXE framing and origin checks passed.')

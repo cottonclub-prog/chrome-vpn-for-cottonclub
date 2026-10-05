@@ -7,12 +7,12 @@ $archivePath = Join-Path $projectRoot 'dist/cottonclub-vpn-for-chrome-windows-x6
 $global:CottonClubBootstrapDownloadMode = 'good'
 function Invoke-RestMethod {
     param([string]$Uri, $Headers, [int]$TimeoutSec)
-    if ($Uri -ne 'https://api.github.com/repos/cottonclub-prog/chrome-vpn-for-cottonclub/releases/latest') { throw 'Unexpected API origin' }
+    if ($Uri -ne 'https://api.github.com/repos/cottonclub-prog/cottonclub-vpn-for-chrome/releases/latest') { throw 'Unexpected API origin' }
     return $global:CottonClubBootstrapTestRelease
 }
 function Invoke-WebRequest {
     param([switch]$UseBasicParsing, [string]$Uri, [string]$OutFile, [int]$TimeoutSec)
-    if ($Uri -notmatch '^https://github\.com/cottonclub-prog/chrome-vpn-for-cottonclub/releases/download/v\d+\.\d+\.\d+/cottonclub-vpn-for-chrome-windows-x64\.zip$') { throw 'Unexpected download origin' }
+    if ($Uri -notmatch '^https://github\.com/cottonclub-prog/cottonclub-vpn-for-chrome/releases/download/v\d+\.\d+\.\d+/cottonclub-vpn-for-chrome-windows-x64\.zip$') { throw 'Unexpected download origin' }
     if ($global:CottonClubBootstrapDownloadMode -eq 'offline') { throw 'Simulated network failure' }
     Copy-Item -LiteralPath $archivePath -Destination $OutFile
 }
@@ -29,10 +29,10 @@ try {
     $global:CottonClubBootstrapTestRelease = [pscustomobject]@{
         tag_name = 'v' + $published.version; draft = $false; prerelease = $false
         assets = @([pscustomobject]@{ name='cottonclub-vpn-for-chrome-windows-x64.zip'; digest=('sha256:' + $published.sha256)
-            browser_download_url="https://github.com/cottonclub-prog/chrome-vpn-for-cottonclub/releases/download/v$($published.version)/cottonclub-vpn-for-chrome-windows-x64.zip" })
+            browser_download_url="https://github.com/cottonclub-prog/cottonclub-vpn-for-chrome/releases/download/v$($published.version)/cottonclub-vpn-for-chrome-windows-x64.zip" })
     }
-    New-Item -ItemType Directory (Join-Path $fixture 'extension') | Out-Null
-    '{"version":"1.0.0"}' | Set-Content (Join-Path $fixture 'extension/manifest.json') -Encoding UTF8
+    New-Item -ItemType Directory (Join-Path $fixture 'CottonClub VPN for Chrome') | Out-Null
+    '{"version":"1.0.0"}' | Set-Content (Join-Path $fixture 'CottonClub VPN for Chrome/manifest.json') -Encoding UTF8
     & (Join-Path $fixture 'Bootstrap.ps1') -Latest -VerifyOnly
     $global:CottonClubBootstrapTestRelease.assets[0].browser_download_url = 'https://example.org/untrusted.zip'
     $failed = $false

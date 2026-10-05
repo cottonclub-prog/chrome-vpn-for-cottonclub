@@ -30,11 +30,11 @@ class UserInstallTests(unittest.TestCase):
                 self.assertNotIn("os.environ['ProgramFiles']", source)
 
     def test_extension_and_user_host_share_identity_without_old_machine_host(self):
-        source = (ROOT / 'extension/background.js').read_text(encoding='utf-8')
+        source = (ROOT / 'CottonClub VPN for Chrome/background.js').read_text(encoding='utf-8')
         host = re.search(r"const HOST = '([^']+)'", source)[1]
         self.assertEqual(host, HOST_NAME)
         self.assertEqual(HOST_NAME, 'com.cottonclub.hysteria2')
         self.assertEqual(source.count('const HOST = '), 1)
-        manifest = json.loads((ROOT / 'extension/manifest.json').read_text(encoding='utf-8'))
+        manifest = json.loads((ROOT / 'CottonClub VPN for Chrome/manifest.json').read_text(encoding='utf-8'))
         self.assertIn('nativeMessaging', manifest['permissions'])
         self.assertIn(EXTENSION_ID, (ROOT / 'Install.ps1').read_text(encoding='utf-8-sig'))

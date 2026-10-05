@@ -11,9 +11,9 @@ foreach ($name in @('Test-InstallDirectory','Install-ApplicationFiles','Remove-P
     Invoke-Expression $definition.Extent.Text
 }
 $package = Join-Path $fixture 'payload'
-New-Item -ItemType Directory -Path (Join-Path $package 'host'),(Join-Path $package 'extension') -Force | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $package 'host'),(Join-Path $package 'CottonClub VPN for Chrome') -Force | Out-Null
 'new host' | Set-Content -LiteralPath (Join-Path $package 'host/cottonclub-vpn-for-chrome-host.exe')
-'{"version":"1.6.0"}' | Set-Content -LiteralPath (Join-Path $package 'extension/manifest.json')
+'{"version":"1.6.0"}' | Set-Content -LiteralPath (Join-Path $package 'CottonClub VPN for Chrome/manifest.json')
 foreach ($file in @('Launch.ps1','Uninstall.cmd','Uninstall.ps1','Bootstrap.ps1','Update.ps1','README.md')) { 'fixture' | Set-Content -LiteralPath (Join-Path $package $file) }
 $parent = Join-Path $fixture 'localappdata'
 New-Item -ItemType Directory -Path $parent -Force | Out-Null
@@ -21,7 +21,8 @@ $old = Join-Path $parent 'Chrome VPN for CottonClub'
 $oldIdentity = Join-Path $parent 'ZXC-Desktop'
 $oldRuntime = Join-Path $parent 'CottonClub-Hysteria2'
 $release = Join-Path $old 'releases/1234567890abcdef1234567890abcdef'
-New-Item -ItemType Directory -Path (Join-Path $release 'host'),$oldIdentity,(Join-Path $oldRuntime 'extension') -Force | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $release 'host'),$oldIdentity,(Join-Path $oldRuntime 'extension'),(Join-Path $old 'extension') -Force | Out-Null
+'extension settings marker' | Set-Content -LiteralPath (Join-Path $old 'extension/preserved.txt')
 'old host' | Set-Content -LiteralPath (Join-Path $release 'host/CottonClub-Host.exe')
 '{"name":"com.cottonclub.hysteria2"}' | Set-Content -LiteralPath (Join-Path $release 'com.cottonclub.hysteria2.json')
 'retained user file' | Set-Content -LiteralPath (Join-Path $old 'user-note.txt')
@@ -29,23 +30,33 @@ $identity = '0123456789abcdef0123456789abcdef'
 [IO.File]::WriteAllText((Join-Path $oldIdentity 'device-id.txt'), $identity)
 $base = Install-ApplicationFiles $package $parent
 Remove-PreviousApplicationFiles $base $parent
-if ($base -ne (Join-Path $parent 'cottonclub vpn for chrome')) { throw 'Unexpected install folder' }
+if ($base -ne (Join-Path $parent 'CottonClub VPN for Chrome')) { throw 'Unexpected install folder' }
 if ([IO.File]::ReadAllText((Join-Path $base 'device-id.txt')) -cne $identity) { throw 'Device identity changed' }
 if ((Test-Path $old) -or (Test-Path $oldIdentity) -or (Test-Path $oldRuntime) -or (Test-Path (Join-Path $base 'releases'))) { throw 'Previous generated directories remain' }
 if (-not (Test-Path (Join-Path $base 'user-note.txt'))) { throw 'User file was not preserved' }
+if ((Test-Path (Join-Path $base 'extension')) -or -not (Test-Path (Join-Path $base 'CottonClub VPN for Chrome/preserved.txt'))) { throw 'Extension directory was not migrated' }
 'updated host' | Set-Content -LiteralPath (Join-Path $package 'host/cottonclub-vpn-for-chrome-host.exe')
 $again = Install-ApplicationFiles $package $parent
 Remove-PreviousApplicationFiles $again $parent
 if ((Get-Content -LiteralPath (Join-Path $base 'host/cottonclub-vpn-for-chrome-host.exe')).Trim() -ne 'updated host') { throw 'Helper was not updated in place' }
 if ([IO.File]::ReadAllText((Join-Path $base 'device-id.txt')) -cne $identity) { throw 'Update replaced identity' }
 if (@(Get-ChildItem -LiteralPath $base -Directory).Count -ne 2) { throw 'Update accumulated directories' }
+# Version 1.6.0 used a lowercase root and the old inner extension name.
+$caseParent = Join-Path $fixture 'case-migration'
+$caseRoot = Join-Path $caseParent 'cottonclub vpn for chrome'
+New-Item -ItemType Directory -Path (Join-Path $caseRoot 'extension') -Force | Out-Null
+[IO.File]::WriteAllText((Join-Path $caseRoot 'device-id.txt'), $identity)
+$caseBase = Install-ApplicationFiles $package $caseParent
+if ((Get-Item -LiteralPath $caseBase).Name -cne 'CottonClub VPN for Chrome') { throw 'Installation folder casing was not updated' }
+if ((Test-Path (Join-Path $caseBase 'extension')) -or -not (Test-Path (Join-Path $caseBase 'CottonClub VPN for Chrome/manifest.json'))) { throw 'Version 1.6.0 extension folder was not migrated' }
+if ([IO.File]::ReadAllText((Join-Path $caseBase 'device-id.txt')) -cne $identity) { throw 'Case migration changed device identity' }
 # A malformed previous identity must fail before creating or moving installation files.
 $badParent = Join-Path $fixture 'invalid'
 New-Item -ItemType Directory -Path (Join-Path $badParent 'ZXC-Desktop') -Force | Out-Null
 'invalid' | Set-Content -LiteralPath (Join-Path $badParent 'ZXC-Desktop/device-id.txt')
 $failed = $false
 try { Install-ApplicationFiles $package $badParent } catch { $failed = $_.Exception.Message -match 'Invalid saved device' }
-if (-not $failed -or (Test-Path (Join-Path $badParent 'cottonclub vpn for chrome'))) { throw 'Malformed identity was not rejected safely' }
+if (-not $failed -or (Test-Path (Join-Path $badParent 'CottonClub VPN for Chrome'))) { throw 'Malformed identity was not rejected safely' }
 # Simulate an active helper using only a mock process record.
 function Get-Process { param($Name, $ErrorAction); [pscustomobject]@{Path=(Join-Path $base 'host/cottonclub-vpn-for-chrome-host.exe')} }
 $failed = $false

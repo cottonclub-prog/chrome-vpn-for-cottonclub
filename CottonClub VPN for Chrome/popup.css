@@ -5,7 +5,9 @@
 :root{--charcoal:#242323;--blue:#008ddd;--orange:#ff8000;background:#181818;color:#f5f5f5}
 body{background:radial-gradient(ellipse at 73% 32%,#008ddd0b,transparent 50%),#181818}
 .frame{background:var(--charcoal);border-color:#3c3b3b}
-.brand{font-size:12px;letter-spacing:0;font-weight:750;white-space:nowrap}
+.brand{font-size:15px;letter-spacing:.8px;font-weight:750;white-space:nowrap}
+.brand-text{display:flex;flex-direction:column;gap:4px;line-height:1}
+.brand-subtitle{font-size:9px;line-height:1.2;letter-spacing:2px;font-weight:550;color:#aaa5a2}
 .brandmark{background:var(--blue);color:#fff}
 .overline{color:#71caff}
 .caption p{color:#a3a3a3}.caption .note{border-color:#373737}

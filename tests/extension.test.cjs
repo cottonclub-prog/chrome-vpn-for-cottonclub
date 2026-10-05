@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const {test} = require('node:test');
-const source = name => fs.readFileSync(path.join(__dirname, '../extension', name), 'utf8');
+const source = name => fs.readFileSync(path.join(__dirname, '../CottonClub VPN for Chrome', name), 'utf8');
 
 function background(saved = {}, savedSession = {}, {localAccessLevel = true, enterprise = false} = {}) {
   const listeners = {};

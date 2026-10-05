@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 import pefile
 
 ROOT = Path(__file__).resolve().parents[1]
-version = json.loads((ROOT / 'extension/manifest.json').read_text(encoding='utf-8'))['version']
+version = json.loads((ROOT / 'CottonClub VPN for Chrome/manifest.json').read_text(encoding='utf-8'))['version']
 setup = ROOT / 'dist' / f'cottonclub-vpn-for-chrome-setup-{version}.exe'
 with pefile.PE(str(setup)) as pe:
     levels = []

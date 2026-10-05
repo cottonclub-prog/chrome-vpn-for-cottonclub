@@ -27,7 +27,7 @@ def device_id(directory=None):
 
 def subscription_headers():
     return {
-        'User-Agent': 'cottonclub-vpn-for-chrome/1.6.0',
+        'User-Agent': 'cottonclub-vpn-for-chrome/1.6.1',
         'Accept': 'text/plain',
         'X-Hwid': device_id(),
         'X-Device-Os': 'Windows',

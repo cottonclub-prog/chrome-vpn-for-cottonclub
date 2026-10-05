@@ -32,7 +32,7 @@ def check_mode(mode):
 
 
 def default_rules():
-    path = ROOT / 'routing/default-rules.json' if getattr(sys, 'frozen', False) else ROOT.parent / 'extension/routing-defaults.json'
+    path = ROOT / 'routing/default-rules.json' if getattr(sys, 'frozen', False) else ROOT.parent / 'CottonClub VPN for Chrome/routing-defaults.json'
     return json.loads(path.read_text(encoding='utf-8'))
 
 

@@ -73,7 +73,7 @@ async function badge() {
   const text = state.mode === 'on' ? 'ON' : ['blocked', 'error'].includes(state.mode) ? '!' : '';
   await chrome.action.setBadgeText({text});
   await chrome.action.setBadgeBackgroundColor({color: state.mode === 'on' ? '#167c5a' : '#b64c26'});
-  await chrome.action.setTitle({title: `cottonclub vpn for chrome · ${state.mode === 'on' ? 'Подключено' : ['blocked', 'error'].includes(state.mode) ? 'Соединение потеряно' : 'Отключено'}`});
+  await chrome.action.setTitle({title: `COTTONCLUB VPN · ${state.mode === 'on' ? 'Подключено' : ['blocked', 'error'].includes(state.mode) ? 'Соединение потеряно' : 'Отключено'}`});
 }
 
 function absorb(data) {
@@ -199,25 +199,25 @@ async function readUpdateProgress() {
     if (result.id !== updateRequest.id) throw new Error('stale');
     if (result.phase === 'failed') {
       state.updateFailed = true;
-      state.message = `Обновление не установлено: ${String(result.message || 'Ошибка установщика').slice(0, 500)}. Подробности: %LOCALAPPDATA%\\cottonclub vpn for chrome\\update.log`;
+      state.message = `Обновление не установлено: ${String(result.message || 'Ошибка установщика').slice(0, 500)}. Подробности: %LOCALAPPDATA%\\CottonClub VPN for Chrome\\update.log`;
     } else if (result.phase === 'complete') {
       const manifestResponse = await fetch(chrome.runtime.getURL('manifest.json'), {cache: 'no-store'});
       if (!manifestResponse.ok) throw new Error('manifest');
       const manifest = await manifestResponse.json();
       if (manifest.version !== result.version || manifest.version !== updateRequest.version) {
         state.updateFailed = true;
-        state.message = 'Новая версия не найдена в папке этого расширения. Установите свежий комплект и загрузите папку %LOCALAPPDATA%\\cottonclub vpn for chrome\\extension в chrome://extensions.';
+        state.message = 'Новая версия не найдена в папке этого расширения. Установите свежий комплект и загрузите папку %LOCALAPPDATA%\\CottonClub VPN for Chrome\\CottonClub VPN for Chrome в chrome://extensions.';
       } else {
         state.updateReady = true;
         state.message = `Версия ${result.version} установлена. Теперь перезагрузите расширение.`;
       }
     } else {
       state.message = Date.now() - updateRequest.started > 600000
-        ? 'Обновление не подтвердило завершение. Проверьте %LOCALAPPDATA%\\cottonclub vpn for chrome\\update.log. Для ручной установки сначала выключите расширение в chrome://extensions.'
+        ? 'Обновление не подтвердило завершение. Проверьте %LOCALAPPDATA%\\CottonClub VPN for Chrome\\update.log. Для ручной установки сначала выключите расширение в chrome://extensions.'
         : 'Обновление выполняется. Кнопка перезагрузки станет доступна после проверки установленной версии.';
     }
   } catch (_) {
-    state.message = 'Результат обновления пока недоступен. Если ожидание не помогает, выключите расширение и запустите Install.cmd из свежего комплекта. Загружайте расширение из %LOCALAPPDATA%\\cottonclub vpn for chrome\\extension.';
+    state.message = 'Результат обновления пока недоступен. Если ожидание не помогает, выключите расширение и запустите Install.cmd из свежего комплекта. Загружайте расширение из %LOCALAPPDATA%\\CottonClub VPN for Chrome\\CottonClub VPN for Chrome.';
   }
 }
 
@@ -256,7 +256,7 @@ async function execute(command, message) {
         const response = await fetch(chrome.runtime.getURL('managed-install.json'), {cache: 'no-store'});
         managed = response.ok && (await response.json()).managed === true;
       } catch (_) {}
-      if (!managed) throw new Error('Расширение загружено из неустановленной копии. Запустите Install.cmd и в chrome://extensions загрузите папку %LOCALAPPDATA%\\cottonclub vpn for chrome\\extension. Копия из Downloads автоматически не обновляется.');
+      if (!managed) throw new Error('Расширение загружено из неустановленной копии. Запустите Install.cmd и в chrome://extensions загрузите папку %LOCALAPPDATA%\\CottonClub VPN for Chrome\\CottonClub VPN for Chrome. Копия из Downloads автоматически не обновляется.');
       await releaseSettings();
       desired = false;
       await chrome.storage.local.set({vpnEnabled: false});
