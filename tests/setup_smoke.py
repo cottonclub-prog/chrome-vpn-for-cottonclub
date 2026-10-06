@@ -8,7 +8,7 @@ import pefile
 
 ROOT = Path(__file__).resolve().parents[1]
 version = json.loads((ROOT / 'CottonClub VPN for Chrome/manifest.json').read_text(encoding='utf-8'))['version']
-setup = ROOT / 'dist/Setup.exe'
+setup = ROOT / 'dist' / f'cottonclub-vpn-for-chrome-setup-{version}.exe'
 with pefile.PE(str(setup)) as pe:
     file_version = pe.VS_FIXEDFILEINFO[0]
     assert (file_version.FileVersionMS >> 16, file_version.FileVersionMS & 0xffff,

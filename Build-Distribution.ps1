@@ -32,7 +32,7 @@ $iconPath = Join-Path $PSScriptRoot 'CottonClub VPN for Chrome/icons/app.ico'
 $versionSource = Join-Path $stage 'AssemblyInfo.cs'
 [IO.File]::WriteAllText($versionSource, ('[assembly:System.Reflection.AssemblyTitle("CottonClub VPN for Chrome Setup")][assembly:System.Reflection.AssemblyFileVersion("' + $metadata.version + '.0")]'), [Text.UTF8Encoding]::new($false))
 $compiler = Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
-$setupPath = Join-Path $PSScriptRoot 'dist/Setup.exe'
+$setupPath = Join-Path $PSScriptRoot ('dist/cottonclub-vpn-for-chrome-setup-' + $metadata.version + '.exe')
 & $compiler /nologo /target:winexe /platform:x64 "/out:$setupPath" "/win32icon:$iconPath" "/win32manifest:$(Join-Path $PSScriptRoot 'installer/app.manifest')" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll "/resource:$archive,payload.zip" "/resource:$(Join-Path $stage 'payload.sha256'),payload.sha256" (Join-Path $PSScriptRoot 'installer/Setup.cs') $versionSource
 if ($LASTEXITCODE) { throw 'EXE installer compilation failed.' }
 @($archive,$crxPath,$setupPath,(Join-Path $PSScriptRoot 'dist/updates.xml')) | ForEach-Object {
