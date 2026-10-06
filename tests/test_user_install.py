@@ -29,6 +29,12 @@ class UserInstallTests(unittest.TestCase):
                 self.assertNotRegex(source, r'(?i)-Verb\s+RunAs|ShellExecute|requireAdministrator')
                 self.assertNotIn("os.environ['ProgramFiles']", source)
 
+    def test_installer_only_registers_native_messaging(self):
+        source = (ROOT / 'Install.ps1').read_text(encoding='utf-8-sig')
+        registrations = re.findall(r"CreateSubKey\('([^']+)'\)", source)
+        self.assertEqual(registrations, [r'Software\Google\Chrome\NativeMessagingHosts\com.cottonclub.hysteria2'])
+        self.assertNotRegex(source, r'\$\w+\.Save\(')
+
     def test_extension_and_user_host_share_identity_without_old_machine_host(self):
         source = (ROOT / 'CottonClub VPN for Chrome/background.js').read_text(encoding='utf-8')
         host = re.search(r"const HOST = '([^']+)'", source)[1]

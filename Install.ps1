@@ -93,6 +93,47 @@ function Remove-PreviousApplicationFiles([string]$Base, [string]$Parent) {
     if ((Test-Path -LiteralPath $previousTemporary) -and -not (Get-ChildItem -LiteralPath $previousTemporary -Force)) { Remove-Item -LiteralPath $previousTemporary }
     if ((Test-Path -LiteralPath $runtimeDirectory) -and -not (Get-ChildItem -LiteralPath $runtimeDirectory -Force)) { Remove-Item -LiteralPath $runtimeDirectory }
 }
+function Remove-WindowsApplicationEntries([string]$Base, $Registry, $Shell, [string[]]$ShortcutDirectories) {
+    $basePath = [IO.Path]::GetFullPath($Base).TrimEnd('\')
+    $parent = [IO.Path]::GetDirectoryName($basePath)
+    Test-InstallDirectory $basePath $parent 'CottonClub VPN for Chrome'
+    $ownedRoots = @($basePath, (Join-Path $parent 'Chrome VPN for CottonClub'), (Join-Path $parent 'CottonClub-Hysteria2'))
+    foreach ($name in @('CottonClubVpnForChrome', 'CottonClubHysteria2')) {
+        $registrationPath = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\' + $name
+        $registration = $Registry.OpenSubKey($registrationPath)
+        if (-not $registration) { continue }
+        $owned = $false
+        try {
+            $location = [string]$registration.GetValue('InstallLocation')
+            if ($location) {
+                try { $owned = $ownedRoots -contains [IO.Path]::GetFullPath($location).TrimEnd('\') } catch { $owned = $false }
+            } else {
+                $command = [string]$registration.GetValue('UninstallString')
+                foreach ($root in $ownedRoots) {
+                    if ($command.IndexOf('"' + (Join-Path $root 'Uninstall.ps1') + '"', [StringComparison]::OrdinalIgnoreCase) -ge 0) { $owned = $true }
+                }
+            }
+        } finally { $registration.Close() }
+        if ($owned) { $Registry.DeleteSubKeyTree($registrationPath, $false) }
+    }
+    foreach ($folder in $ShortcutDirectories) {
+        if (-not $folder) { continue }
+        foreach ($name in @('CottonClub VPN for Chrome.lnk', 'CottonClub Hysteria 2.lnk')) {
+            $path = [IO.Path]::GetFullPath((Join-Path $folder $name))
+            if ([IO.Path]::GetDirectoryName($path) -ne [IO.Path]::GetFullPath($folder).TrimEnd('\')) { throw 'Invalid shortcut path' }
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
+            if ((Get-Item -LiteralPath $path -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }
+            # CreateShortcut reads an existing link; Save is intentionally never called.
+            try { $shortcut = $Shell.CreateShortcut($path) } catch { continue }
+            $owned = $false
+            foreach ($root in $ownedRoots) {
+                if ($shortcut.TargetPath -and $shortcut.TargetPath.StartsWith($root + '\', [StringComparison]::OrdinalIgnoreCase)) { $owned = $true }
+                if ($shortcut.Arguments -and $shortcut.Arguments.IndexOf('"' + (Join-Path $root 'Launch.ps1') + '"', [StringComparison]::OrdinalIgnoreCase) -ge 0) { $owned = $true }
+            }
+            if ($owned) { Remove-Item -LiteralPath $path -Force }
+        }
+    }
+}
 function Test-Package {
     if (-not (Test-Path (Join-Path $PSScriptRoot 'payload.json'))) { throw 'Run Install.cmd from the built ZIP in dist, not the source folder.' }
     $files = Get-Content (Join-Path $PSScriptRoot 'payload.json') -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -139,28 +180,9 @@ try {
     try {
         $key = $hkcu.CreateSubKey('Software\Google\Chrome\NativeMessagingHosts\com.cottonclub.hysteria2')
         try { $key.SetValue('', $hostPath) } finally { $key.Close() }
-        $uninstall = $hkcu.CreateSubKey('Software\Microsoft\Windows\CurrentVersion\Uninstall\CottonClubVpnForChrome')
-        try {
-            $uninstall.SetValue('DisplayName', 'CottonClub VPN for Chrome')
-            $uninstall.SetValue('DisplayVersion', $manifest.version)
-            $uninstall.SetValue('InstallLocation', $base)
-            $uninstall.SetValue('DisplayIcon', (Join-Path $base 'CottonClub VPN for Chrome/icons/app.ico'))
-            $uninstall.SetValue('UninstallString', 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $base 'Uninstall.ps1') + '"')
-        } finally { $uninstall.Close() }
-        $hkcu.DeleteSubKeyTree('Software\Microsoft\Windows\CurrentVersion\Uninstall\CottonClubHysteria2', $false)
+        $shell = New-Object -ComObject WScript.Shell
+        Remove-WindowsApplicationEntries $base $hkcu $shell @([Environment]::GetFolderPath('DesktopDirectory'), [Environment]::GetFolderPath('Programs'))
     } finally { $hkcu.Close() }
-    $shell = New-Object -ComObject WScript.Shell
-    foreach ($folder in @([Environment]::GetFolderPath('DesktopDirectory'), [Environment]::GetFolderPath('Programs'))) {
-        $previousShortcut = Join-Path $folder 'CottonClub Hysteria 2.lnk'
-        if (Test-Path -LiteralPath $previousShortcut) { Remove-Item -LiteralPath $previousShortcut }
-        $shortcut = $shell.CreateShortcut((Join-Path $folder 'CottonClub VPN for Chrome.lnk'))
-        $shortcut.TargetPath = Join-Path $env:WINDIR 'System32/WindowsPowerShell/v1.0/powershell.exe'
-        $shortcut.Arguments = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + (Join-Path $base 'Launch.ps1') + '"'
-        $shortcut.WindowStyle = 7
-        $shortcut.WorkingDirectory = $base
-        $shortcut.IconLocation = (Join-Path $base 'CottonClub VPN for Chrome/icons/app.ico')
-        $shortcut.Save()
-    }
     Remove-PreviousApplicationFiles $base $parent
     if ($Quiet) { Write-Host "Installed version $($manifest.version)."; return }
     Add-Type -AssemblyName System.Windows.Forms
