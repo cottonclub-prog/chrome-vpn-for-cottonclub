@@ -14,7 +14,7 @@ function background(saved = {}, savedSession = {}, {localAccessLevel = true, ent
     async get() { return {value: this.value, levelOfControl: this.levelOfControl}; },
     async set({value}) { this.value = value; this.levelOfControl = 'controlled_by_this_extension'; },
     async clear() { this.value = {}; this.levelOfControl = 'controllable_by_this_extension'; },
-    onChange: {addListener() {}},
+    onChange: {addListener(fn) { this.listener = fn; }},
   });
   const chrome = {
     storage: {
@@ -24,7 +24,7 @@ function background(saved = {}, savedSession = {}, {localAccessLevel = true, ent
     action: {async setBadgeText() {}, async setBadgeBackgroundColor() {}, async setTitle() {}},
     proxy: {settings: setting()},
     privacy: {network: {webRTCIPHandlingPolicy: setting(), networkPredictionEnabled: setting()}},
-    alarms: {create() {}, onAlarm: {addListener() {}}},
+    alarms: {create() {}, onAlarm: {addListener(fn) { listeners.alarm = fn; }}},
     runtime: {id: 'test', getManifest: () => ({version: '1.0.3', update_url:enterprise ? 'https://example.com/updates.xml' : undefined}), getURL: () => 'chrome-extension://test/',
       onMessage: {addListener(fn) { listeners.message = fn; }}, onStartup: {addListener() {}},
       connectNative() { throw new Error('Helper unavailable'); }},
@@ -33,7 +33,7 @@ function background(saved = {}, savedSession = {}, {localAccessLevel = true, ent
   const context = vm.createContext({chrome, setTimeout, clearTimeout,
     fetch: async () => ({ok: true, json: async () => JSON.parse(source('routing-defaults.json'))})});
   vm.runInContext(source('background.js'), context);
-  return {chrome, storage, context, accessCalls,
+  return {chrome, storage, context, accessCalls, listeners,
     ready: vm.runInContext('ready', context),
     send(message) { return new Promise(resolve => listeners.message(message,
       {id: 'test', url: 'chrome-extension://test/popup.html'}, resolve)); },
@@ -55,7 +55,7 @@ test('Chrome 138 without local.setAccessLevel keeps enabled VPN blocked until ex
   const app = background({vpnEnabled:true}, {}, {localAccessLevel:false});
   await app.ready;
   assert.equal((await app.send({command:'getState'})).mode, 'blocked');
-  assert.equal(app.chrome.proxy.settings.value.rules.singleProxy.port, 17892);
+  assert.equal(app.chrome.proxy.settings.value.rules.singleProxy.port, 0);
   assert.equal((await app.send({command:'disconnect'})).mode, 'off');
   assert.equal(app.storage.vpnEnabled, false);
 });
@@ -84,7 +84,7 @@ test('restart with enabled VPN retains a blocking proxy until explicit disconnec
   const app = background({vpnEnabled: true});
   await app.ready;
   assert.equal((await app.send({command: 'getState'})).mode, 'blocked');
-  assert.equal(app.chrome.proxy.settings.value.rules.singleProxy.port, 17892);
+  assert.equal(app.chrome.proxy.settings.value.rules.singleProxy.port, 0);
   assert.equal((await app.send({command: 'disconnect'})).mode, 'off');
   assert.equal(app.storage.vpnEnabled, false);
   assert.equal(app.chrome.proxy.settings.levelOfControl, 'controllable_by_this_extension');
@@ -248,3 +248,120 @@ test('saving rules while VPN is active is rejected without changing storage', as
 });
 
 // Popup selection regression is covered in routing_ui_smoke.py with a real DOM.
+
+function helper(app, assignedPort = 24567) {
+  const state = {connected:false, port:assignedPort, nodes:[{index:0, name:'Test', protocol:'hysteria2'}]};
+  const events = {};
+  const native = {
+    onMessage: {addListener(fn) { events.message = fn; }},
+    onDisconnect: {addListener(fn) { events.disconnect = fn; }},
+    disconnect() { state.connected = false; events.disconnect(); },
+    postMessage(message) {
+      if (message.action === 'connect') {
+        assert.equal(app.chrome.proxy.settings.value.rules.singleProxy.port, 0, 'old/free ports must not be used while the core starts');
+        state.connected = true;
+      }
+      if (message.action === 'disconnect') state.connected = false;
+      events.message({id:message.id, ok:true, result:{...state, selected:0}});
+    },
+  };
+  app.chrome.runtime.connectNative = () => native;
+  return {state, native, events};
+}
+
+test('independent profiles use the port advertised by their own helper', async () => {
+  const first = background(), second = background();
+  await Promise.all([first.ready, second.ready]);
+  helper(first, 24567); helper(second, 25678);
+  for (const app of [first, second]) {
+    await app.send({command:'refresh'});
+    assert.equal((await app.send({command:'connect', index:0})).mode, 'on');
+  }
+  assert.equal(first.chrome.proxy.settings.value.rules.singleProxy.port, 24567);
+  assert.equal(second.chrome.proxy.settings.value.rules.singleProxy.port, 25678);
+});
+
+test('reconnect retires the previous port and uses the newly assigned port', async () => {
+  const app = background(); await app.ready;
+  const backend = helper(app, 24567);
+  await app.send({command:'refresh'});
+  await app.send({command:'connect', index:0});
+  backend.state.port = 25678;
+  assert.equal((await app.send({command:'connect', index:0})).mode, 'on');
+  assert.equal(app.chrome.proxy.settings.value.rules.singleProxy.port, 25678);
+});
+
+test('helper disconnection replaces a reusable old port with a non-listening blocking endpoint', async () => {
+  const app = background(); await app.ready;
+  const backend = helper(app);
+  await app.send({command:'refresh'});
+  await app.send({command:'connect', index:0});
+  backend.native.disconnect();
+  await vm.runInContext('blocking', app.context);
+  assert.equal((await app.send({command:'getState'})).mode, 'blocked');
+  assert.equal(app.chrome.proxy.settings.value.mode, 'fixed_servers');
+  assert.equal(app.chrome.proxy.settings.value.rules.singleProxy.port, 0);
+  assert.deepEqual([...app.chrome.proxy.settings.value.rules.bypassList], ['<-loopback>']);
+  assert.equal(app.storage.vpnEnabled, true);
+  assert.equal((await app.send({command:'disconnect'})).mode, 'off');
+  assert.equal(app.chrome.proxy.settings.value.mode, undefined);
+});
+
+test('worker restart never restores a previously assigned port', async () => {
+  const app = background({vpnEnabled:true});
+  app.chrome.proxy.settings.value = {mode:'fixed_servers', rules:{singleProxy:{scheme:'socks5', host:'127.0.0.1', port:24567}}};
+  app.chrome.proxy.settings.levelOfControl = 'controlled_by_this_extension';
+  await app.ready;
+  assert.equal(app.chrome.proxy.settings.value.rules.singleProxy.port, 0);
+});
+
+test('missing, malformed and zero ports never activate a proxy and stop the core', async () => {
+  for (const port of [undefined, 0, -1, 65536, '24567', 1.5]) {
+    const app = background(); await app.ready;
+    const backend = helper(app); backend.state.port = port;
+    await app.send({command:'refresh'});
+    const result = await app.send({command:'connect', index:0});
+    assert.equal(result.mode, 'off');
+    assert.match(result.message, /порт/);
+    assert.equal(backend.state.connected, false);
+    assert.equal(app.chrome.proxy.settings.value.mode, undefined);
+  }
+});
+
+test('a stopped core or changed health-check port blocks traffic', async () => {
+  for (const connected of [true, false]) {
+    const app = background(); await app.ready;
+    const backend = helper(app);
+    await app.send({command:'refresh'}); await app.send({command:'connect', index:0});
+    backend.state.connected = connected; backend.state.port = 25678;
+    app.listeners.alarm({name:'health'});
+    await vm.runInContext('serial', app.context);
+    await vm.runInContext('blocking', app.context);
+    assert.equal((await app.send({command:'getState'})).mode, 'blocked');
+    assert.equal(app.chrome.proxy.settings.value.rules.singleProxy.port, 0);
+  }
+});
+
+test('losing the helper while Chrome applies a new port cannot report a connected VPN', async () => {
+  for (const command of ['connect', 'refresh']) {
+    const app = background({vpnEnabled:true}); await app.ready;
+    const backend = helper(app);
+    await app.send({command:'refresh'});
+    const settings = app.chrome.proxy.settings;
+    const set = settings.set.bind(settings);
+    let interrupted = false;
+    settings.set = async options => {
+      await set(options);
+      if (options.value.rules.singleProxy.port > 0 && !interrupted) {
+        interrupted = true;
+        backend.native.disconnect();
+      }
+    };
+    if (command === 'refresh') backend.state.connected = true;
+    const result = await app.send({command, index:0});
+    await vm.runInContext('blocking', app.context);
+    assert.equal(result.mode, 'blocked');
+    assert.equal(settings.value.rules.singleProxy.port, 0);
+    assert.equal(app.storage.vpnEnabled, true);
+  }
+});

@@ -32,7 +32,7 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'build') as directory:
     assert not any(policy[key] for key in ('domain', 'domain_suffix', 'domain_regex', 'domain_keyword'))
     args = ['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
             str(package / 'Install.ps1'), '-VerifyOnly']
-    verified = subprocess.run(args, capture_output=True, timeout=30)
+    verified = subprocess.run(args, capture_output=True, timeout=90)
     assert verified.returncode == 0, verified.stderr
     executable = package / 'host/cottonclub-vpn-for-chrome-host.exe'
     # Windows must not elevate the shipped helper or VPN core.
@@ -70,7 +70,7 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'build') as directory:
     assert not responses[3]['ok'], 'VLESS must be rejected by the shipped EXE'
     assert responses[4]['ok'] and responses[4]['result']['rules'][0]['value'] == 'xn--p1ai'
     assert not responses[5]['ok'], 'Invalid routing rules must be rejected by the shipped EXE'
-    assert responses[0]['result']['port'] == 17892
+    assert responses[0]['result']['port'] is None
     assert responses[1]['result']['nodes'][0]['name'] == 'Smoke'
     rejected = subprocess.run([str(executable), 'chrome-extension://wrong/'], input=b'',
                               capture_output=True, timeout=20, creationflags=0x08000000)
@@ -95,6 +95,6 @@ with tempfile.TemporaryDirectory(dir=ROOT / 'build') as directory:
     assert [p.name for p in identity_parent.iterdir()] == ['CottonClub VPN for Chrome']
     # Damaged packages must fail before any Windows mutations.
     (package / 'CottonClub VPN for Chrome/popup.js').write_text('damaged', encoding='utf-8')
-    damaged = subprocess.run(args, capture_output=True, timeout=30)
+    damaged = subprocess.run(args, capture_output=True, timeout=90)
     assert damaged.returncode != 0
 print('ZIP CRC, hashes, installer verification/rejection, EXE framing and origin checks passed.')

@@ -5,7 +5,7 @@ import struct
 import sys
 import threading
 
-from host_config import EXTENSION_IDS, EXTENSION_PORT
+from host_config import EXTENSION_IDS
 from runtime import Core, DATA, check_connection
 from subscription import fetch_subscription, SubscriptionError
 from routing_policy import DEFAULT_MODE, MODES, validate_rules
@@ -46,7 +46,7 @@ def read_message(stream):
 class Host:
     def __init__(self, output, core=None):
         self.output = output
-        self.core = core or Core(data=DATA, port=EXTENSION_PORT)
+        self.core = core or Core(data=DATA)
         self.lock = threading.RLock()
         self.output_lock = threading.Lock()
         self.nodes = []
@@ -65,7 +65,8 @@ class Host:
             self.output.flush()
 
     def status(self):
-        return {'connected': self.connected and self.core.alive(), 'port': EXTENSION_PORT,
+        connected = bool(self.connected and self.core.alive())
+        return {'connected': connected, 'port': self.core.port if connected else None,
                 'ip': self.address, 'selected': self.selected, 'routingMode': self.routing_mode,
                 'nodes': [{'index': i, 'name': n['name'], 'protocol': n['outbound']['type']}
                           for i, n in enumerate(self.nodes)]}
@@ -110,7 +111,7 @@ class Host:
                     else:
                         self.core.start(self.nodes[index], mode)
                     try:
-                        self.address = check_connection(EXTENSION_PORT)
+                        self.address = check_connection(self.core.port)
                     except Exception as error:
                         protocol = 'Hysteria 2/sing-box'
                         reason = str(error) if isinstance(error, ConnectionCheckError) else 'Не удалось проверить интернет через сервер.'

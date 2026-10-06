@@ -15,7 +15,6 @@ from subscription import make_config
 from diagnostics import CoreDiagnostics, ConnectionCheckError, check_error_message
 from app_paths import APP_DIRECTORY
 
-PORT = 17890
 CREATE_NO_WINDOW = 0x08000000 if os.name == 'nt' else 0
 ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent
 DATA = APP_DIRECTORY
@@ -71,7 +70,7 @@ def chrome_path():
     raise RuntimeError('Chrome не найден. Установите Google Chrome для текущего пользователя.')
 
 
-def chrome_args(executable, data=DATA, port=PORT):
+def chrome_args(executable, data=DATA, *, port):
     return [str(executable), f'--user-data-dir={data / "chrome-profile"}',
             f'--proxy-server=socks5://127.0.0.1:{port}',
             '--proxy-bypass-list=<-loopback>',
@@ -82,9 +81,11 @@ def chrome_args(executable, data=DATA, port=PORT):
 
 
 class Core:
-    def __init__(self, binary=None, data=DATA, port=PORT):
+    def __init__(self, binary=None, data=DATA, port=0):
         self.binary = Path(binary or ROOT / 'bin/sing-box.exe')
-        self.data, self.port = Path(data), port
+        self.data = Path(data)
+        self.requested_port = port
+        self.port = None
         self.process = None
         self.job = None
         self.config_path = None
@@ -96,20 +97,22 @@ class Core:
         self.diagnostics = CoreDiagnostics()
         if not self.binary.is_file():
             raise RuntimeError(f'Нет bin/{self.binary.name}. Распакуйте полный архив программы.')
-        # Refuse an occupied port, never switch Chrome onto an unrelated local proxy.
-        try:
-            with socket.socket() as probe:
-                if os.name == 'nt':
-                    probe.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-                probe.bind(('127.0.0.1', self.port))
-        except OSError:
-            raise RuntimeError(f'Порт {self.port} занят. Закройте другую копию программы.') from None
+        # Production uses port 0: the OS allocates and binds it atomically in sing-box.
+        # Explicit ports remain available for isolated integration tests.
+        if self.requested_port:
+            try:
+                with socket.socket() as probe:
+                    if os.name == 'nt':
+                        probe.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+                    probe.bind(('127.0.0.1', self.requested_port))
+            except OSError:
+                raise RuntimeError(f'Порт {self.requested_port} недоступен или занят.') from None
         self.data.mkdir(parents=True, exist_ok=True)
         try:
             with tempfile.NamedTemporaryFile(mode='w', suffix='.json', prefix='core-',
                                              dir=self.data, encoding='utf-8', delete=False) as f:
                 self.config_path = Path(f.name)
-                json.dump(make_config(node, self.port, routing_mode, routing_rules), f)
+                json.dump(make_config(node, self.requested_port, routing_mode, routing_rules), f)
             checked = subprocess.run([str(self.binary), 'check', '-c', str(self.config_path)],
                                      capture_output=True, timeout=15, creationflags=CREATE_NO_WINDOW)
             if checked.returncode:
@@ -128,13 +131,20 @@ class Core:
             while time.monotonic() < deadline:
                 if self.process.poll() is not None:
                     raise RuntimeError('Ядро VPN завершилось при запуске. Проверьте параметры подключения.')
+                actual_port = self.diagnostics.listener_port()
+                if actual_port is None:
+                    time.sleep(.1)
+                    continue
+                if self.requested_port and actual_port != self.requested_port:
+                    raise RuntimeError('Ядро сообщило неожиданный порт локального прокси.')
                 try:
-                    with socket.create_connection(('127.0.0.1', self.port), timeout=.3) as s:
+                    with socket.create_connection(('127.0.0.1', actual_port), timeout=.3) as s:
                         s.sendall(b'\x05\x01\x00')
                         if s.recv(2) == b'\x05\x00':
                             # Core has consumed the config; don't retain credentials on disk.
                             self.config_path.unlink(missing_ok=True)
                             self.config_path = None
+                            self.port = actual_port
                             return
                 except OSError:
                     pass
@@ -151,6 +161,7 @@ class Core:
         return self.diagnostics.hint()
 
     def stop(self):
+        self.port = None
         if self.process is not None:
             if self.process.poll() is None:
                 self.process.terminate()
@@ -171,7 +182,7 @@ class Core:
             self.config_path = None
 
 
-def check_connection(port=PORT):
+def check_connection(port):
     # requests must use the local proxy explicitly, with no direct fallback.
     import requests
     with requests.Session() as session:

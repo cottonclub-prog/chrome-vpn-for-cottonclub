@@ -10,6 +10,21 @@ from subscription import parse_link
 
 
 class DiagnosticsTests(unittest.TestCase):
+    def test_only_our_tcp_listener_announcement_supplies_a_port(self):
+        diagnostics = CoreDiagnostics()
+        for line in ('inbound/mixed[other]: tcp server started at 127.0.0.1:24567',
+                     'inbound/mixed[browser]: udp server started at 127.0.0.1:24567',
+                     'inbound/mixed[browser]: tcp server started at 0.0.0.0:24567',
+                     'inbound/mixed[browser]: tcp server started at 127.0.0.1:0',
+                     'inbound/mixed[browser]: tcp server started at 127.0.0.1:70000'):
+            diagnostics.record(line)
+        self.assertIsNone(diagnostics.listener_port())
+        diagnostics.record('\x1b[32mINFO[0000]\x1b[0m inbound/mixed[browser]: tcp server started at 127.0.0.1:24567\n')
+        self.assertEqual(diagnostics.listener_port(), 24567)
+        diagnostics.record('inbound/mixed[browser]: tcp server started at 127.0.0.1:25678')
+        self.assertEqual(diagnostics.listener_port(), 24567)
+        self.assertEqual(diagnostics.hint(), '')
+
     def test_core_output_keeps_only_fixed_categories(self):
         diagnostics = CoreDiagnostics()
         diagnostics.consume(io.BytesIO(b'x509: certificate verification failed for SECRET-HOST SECRET-UUID\n'))

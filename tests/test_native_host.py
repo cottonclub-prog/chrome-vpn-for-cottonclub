@@ -58,7 +58,7 @@ class NativeHostTests(unittest.TestCase):
         self.assertFalse(host.connected)
 
     def test_routing_mode_reaches_core_and_invalid_mode_is_rejected(self):
-        core = Mock()
+        core = Mock(port=24321)
         host = Host(io.BytesIO(), core=core)
         host.nodes = [parse_link(f'hysteria2://{PASSWORD}@127.0.0.1:443?sni=localhost')]
         with patch('native_host.check_connection', return_value='1.2.3.4'):
@@ -70,6 +70,27 @@ class NativeHostTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             host.dispatch({'action': 'connect', 'index': 0, 'routing_mode': 'invalid'})
         core.start.assert_not_called()
+
+    def test_actual_core_port_reaches_probe_and_status_and_is_cleared_on_disconnect(self):
+        core = Mock(port=24567)
+        host = Host(io.BytesIO(), core=core)
+        self.assertIsNone(host.status()['port'])
+        host.nodes = [parse_link(f'hy2://{PASSWORD}@127.0.0.1:443?sni=localhost')]
+        with patch('native_host.check_connection', return_value='203.0.113.2') as probe:
+            result = host.dispatch({'action': 'connect', 'index': 0})
+        probe.assert_called_once_with(24567)
+        self.assertEqual(result['port'], 24567)
+        core.port = 25678
+        self.assertEqual(host.status()['port'], 25678)
+        core.alive.return_value = False
+        self.assertIsNone(host.status()['port'])
+        core.alive.return_value = True
+        self.assertIsNone(host.dispatch({'action': 'disconnect'})['port'])
+
+    def test_production_host_requests_an_os_allocated_port(self):
+        host = Host(io.BytesIO())
+        self.assertEqual(host.core.requested_port, 0)
+        self.assertIsNone(host.status()['port'])
 
     def test_hysteria_config_preserves_tls(self):
         node = parse_link('hy2://secret@example.org:443?sni=example.net&obfs=salamander&obfs-password=abc')

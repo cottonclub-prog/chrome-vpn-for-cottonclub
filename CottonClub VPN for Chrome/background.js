@@ -1,6 +1,10 @@
 /* All connection control lives here, never in a website/content script. */
 const HOST = 'com.cottonclub.hysteria2';
-const PORT = 17892;
+// Port 0 cannot host a TCP service; never retain a released port while blocked.
+const BLOCK_PORT = 0;
+let proxyPort = BLOCK_PORT;
+let nativeGeneration = 0;
+let blocking = Promise.resolve();
 let native = null;
 let nextId = 1;
 const pending = new Map();
@@ -85,12 +89,19 @@ function absorb(data) {
 }
 
 function nativeLost(message) {
+  nativeGeneration++;
   state.helper = false;
   state.ip = '';
   if (state.updating) return;
   if (desired) {
     if (state.mode !== 'error') state.mode = 'blocked';
     state.message = message || 'Помощник остановлен. Доступ заблокирован до переподключения или отключения VPN.';
+    blocking = blocking.catch(() => {}).then(async () => {
+      if (!desired || state.updating) return;
+      try { await applyProxy(); }
+      catch (error) { state.mode = 'error'; state.message = error.message; }
+      await badge();
+    }).catch(() => {});
   } else {
     state.message = message || 'Установите помощник: запустите Install.cmd из комплекта расширения.';
   }
@@ -102,6 +113,7 @@ function openNative() {
   const port = chrome.runtime.connectNative(HOST);
   native = port;
   port.onMessage.addListener(message => {
+    if (native !== port) return;
     if (message.event === 'stopped') {
       nativeLost(message.error);
       return;
@@ -154,7 +166,14 @@ async function canControl(setting) {
   }
 }
 
-async function applyProxy() {
+function connectionPort(data) {
+  if (data.connected !== true || !Number.isInteger(data.port) || data.port < 1 || data.port > 65535) {
+    throw new Error('Помощник не сообщил рабочий порт VPN. Обновите полный комплект и переподключитесь.');
+  }
+  return data.port;
+}
+
+async function applyProxy(port = BLOCK_PORT) {
   const webRTC = chrome.privacy.network.webRTCIPHandlingPolicy;
   const prediction = chrome.privacy.network.networkPredictionEnabled;
   await canControl(chrome.proxy.settings);
@@ -162,12 +181,14 @@ async function applyProxy() {
   await canControl(prediction);
   await webRTC.set({value: 'disable_non_proxied_udp', scope: 'regular'});
   await prediction.set({value: false, scope: 'regular'});
-  await chrome.proxy.settings.set({scope: 'regular', value: {
+  proxyPort = port;
+  const value = {
     mode: 'fixed_servers', rules: {
-      singleProxy: {scheme: 'socks5', host: '127.0.0.1', port: PORT},
+      singleProxy: {scheme: 'socks5', host: '127.0.0.1', port},
       bypassList: ['<-loopback>']
     }
-  }});
+  };
+  await chrome.proxy.settings.set({scope: 'regular', value});
   const actual = await chrome.proxy.settings.get({incognito: false});
   if (!ownsProxy(actual)) {
     throw new Error('Chrome не применил настройки прокси.');
@@ -175,10 +196,11 @@ async function applyProxy() {
 }
 
 function ownsProxy(details) {
-  return details.levelOfControl === 'controlled_by_this_extension' &&
-    details.value?.mode === 'fixed_servers' &&
+  if (details.levelOfControl !== 'controlled_by_this_extension') return false;
+  return details.value?.mode === 'fixed_servers' &&
+    details.value?.rules?.singleProxy?.scheme === 'socks5' &&
     details.value?.rules?.singleProxy?.host === '127.0.0.1' &&
-    details.value?.rules?.singleProxy?.port === PORT;
+    details.value?.rules?.singleProxy?.port === proxyPort;
 }
 
 async function releaseSettings() {
@@ -186,6 +208,7 @@ async function releaseSettings() {
   await chrome.proxy.settings.clear({scope: 'regular'});
   await chrome.privacy.network.webRTCIPHandlingPolicy.clear({scope: 'regular'});
   await chrome.privacy.network.networkPredictionEnabled.clear({scope: 'regular'});
+  proxyPort = BLOCK_PORT;
 }
 
 async function readUpdateProgress() {
@@ -223,6 +246,7 @@ async function readUpdateProgress() {
 
 async function execute(command, message) {
   await ready;
+  await blocking;
   state.busy = true;
   try {
     if (command === 'finishUpdate') {
@@ -257,9 +281,10 @@ async function execute(command, message) {
         managed = response.ok && (await response.json()).managed === true;
       } catch (_) {}
       if (!managed) throw new Error('Расширение загружено из неустановленной копии. Запустите Install.cmd и в chrome://extensions загрузите папку %LOCALAPPDATA%\\CottonClub VPN for Chrome\\CottonClub VPN for Chrome. Копия из Downloads автоматически не обновляется.');
-      await releaseSettings();
       desired = false;
       await chrome.storage.local.set({vpnEnabled: false});
+      await blocking;
+      await releaseSettings();
       state.mode = 'off';
       state.ip = '';
       await rpc('disconnect');
@@ -284,6 +309,7 @@ async function execute(command, message) {
       state.helper = false;
       state.message = 'VPN отключён. Обновление выполняется; ожидаю подтверждения установленной версии.';
     } else if (command === 'refresh') {
+      const generation = nativeGeneration;
       let result = await rpc('status');
       if (!result.connected && !result.nodes?.length) {
         const saved = await chrome.storage.local.get('subscription');
@@ -296,9 +322,15 @@ async function execute(command, message) {
         state.mode = 'error';
         state.message = 'Прокси изменён извне. VPN не управляет трафиком Chrome.';
       } else if (desired && !result.connected) {
+        await applyProxy();
         state.mode = 'blocked';
         state.message = 'Переподключитесь или отключите VPN. Прямой доступ не включён.';
       } else if (desired && result.connected) {
+        const port = connectionPort(result);
+        if (generation !== nativeGeneration) throw new Error('Соединение с помощником потеряно. Переподключитесь.');
+        if (proxyPort !== port) await applyProxy(port);
+        await blocking;
+        if (generation !== nativeGeneration) throw new Error('Соединение с помощником потеряно. Переподключитесь.');
         state.mode = 'on';
         state.message = 'Подключено';
       } else {
@@ -329,32 +361,41 @@ async function execute(command, message) {
       await canControl(chrome.proxy.settings);
       state.message = 'Проверяю соединение…';
       const wasDesired = desired;
-      const result = await rpc('connect', {index: message.index, routing_mode: state.routingMode, routing_rules: state.routingRules});
-      absorb(result);
       try {
         // Persist intent first. After a browser crash the proxy must not silently clear.
         desired = true;
         await chrome.storage.local.set({vpnEnabled: true});
+        // Retire any previous port before the helper stops/restarts its core.
         await applyProxy();
+        const generation = nativeGeneration;
+        const result = await rpc('connect', {index: message.index, routing_mode: state.routingMode, routing_rules: state.routingRules});
+        const port = connectionPort(result);
+        if (generation !== nativeGeneration) throw new Error('Соединение с помощником потеряно. Переподключитесь.');
+        absorb(result);
+        await applyProxy(port);
+        await blocking;
+        if (generation !== nativeGeneration) throw new Error('Соединение с помощником потеряно. Переподключитесь.');
         state.mode = 'on';
         state.message = state.routingMode === 'ru-direct' ? 'Подключено по вашим правилам. Остальное — через VPN.' : 'Подключено. Все сайты — через VPN.';
       } catch (error) {
         await rpc('disconnect').catch(() => {});
         if (!wasDesired) {
-          await releaseSettings();
           desired = false;
           await chrome.storage.local.set({vpnEnabled: false});
+          await blocking;
+          await releaseSettings();
           state.mode = 'off';
         } else {
+          await applyProxy();
           state.mode = 'blocked';
         }
         throw error;
       }
     } else if (command === 'disconnect') {
       // Explicit user action: restore previous browser preferences, then stop the core.
-      await releaseSettings();
       desired = false;
       await chrome.storage.local.set({vpnEnabled: false});
+      await releaseSettings();
       state.mode = 'off';
       state.ip = '';
       if (native) await rpc('disconnect').catch(() => {});
@@ -363,6 +404,9 @@ async function execute(command, message) {
       throw new Error('Неизвестная команда.');
     }
   } catch (error) {
+    if (desired && ['connect', 'refresh'].includes(command)) {
+      try { await applyProxy(); } catch (_) { state.mode = 'error'; }
+    }
     if (desired && state.mode !== 'error' && command !== 'checkUpdate') state.mode = 'blocked';
     state.message = error.message || 'Ошибка подключения.';
   } finally {
@@ -395,6 +439,7 @@ chrome.alarms.onAlarm.addListener(alarm => {
     try {
       const result = await rpc('status');
       if (!result.connected) nativeLost('Соединение остановлено. Переподключитесь или отключите VPN.');
+      else if (connectionPort(result) !== proxyPort) nativeLost('Порт VPN изменился. Переподключитесь или отключите VPN.');
     } catch (_) { nativeLost(); }
   });
 });

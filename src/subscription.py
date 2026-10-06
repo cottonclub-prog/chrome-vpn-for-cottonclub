@@ -155,7 +155,7 @@ def make_config(node, port, routing_mode='ru-direct', routing_rules=None):
     except ValueError:
         outbound['domain_resolver'] = 'bootstrap'
     config = {
-        'log': {'level': 'error', 'timestamp': False},
+        'log': {'level': 'info', 'timestamp': False},
         'dns': {'servers': [{'type': 'local', 'tag': 'bootstrap'}]},
         'inbounds': [{'type': 'mixed', 'tag': 'browser', 'listen': '127.0.0.1', 'listen_port': port}],
         'outbounds': [outbound],

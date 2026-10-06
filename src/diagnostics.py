@@ -1,5 +1,6 @@
 """Keep only fixed error categories; never retain or expose raw core output."""
 import threading
+import re
 
 
 class ConnectionCheckError(RuntimeError):
@@ -10,6 +11,7 @@ class CoreDiagnostics:
     def __init__(self):
         self._lock = threading.Lock()
         self._hint = ''
+        self._listener_port = None
 
     def consume(self, stream):
         try:
@@ -24,6 +26,13 @@ class CoreDiagnostics:
             stream.close()
 
     def record(self, line):
+        # Read only the endpoint announced by our own core, not a guessed free port.
+        plain = re.sub(r'\x1b\[[0-9;]*m', '', line)
+        listener = re.search(r'inbound/mixed\[browser\]: tcp server started at 127\.0\.0\.1:([0-9]{1,5})\s*$', plain)
+        if listener and 1 <= int(listener[1]) <= 65535:
+            with self._lock:
+                if self._listener_port is None:
+                    self._listener_port = int(listener[1])
         text = line.lower()
         hint = ''
         if any(token in text for token in ('certificate', 'x509:')) and any(token in text for token in ('failed', 'invalid', 'expired', 'unknown', 'mismatch')):
@@ -43,6 +52,10 @@ class CoreDiagnostics:
     def hint(self):
         with self._lock:
             return self._hint
+
+    def listener_port(self):
+        with self._lock:
+            return self._listener_port
 
 
 def check_error_message(error):

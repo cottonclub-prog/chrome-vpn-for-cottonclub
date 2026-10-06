@@ -83,7 +83,7 @@ class SubscriptionTests(unittest.TestCase):
         self.assertEqual(config['route']['final'], 'vpn')
         self.assertEqual([o['type'] for o in config['outbounds']], ['hysteria2'])
         self.assertEqual(config['inbounds'][0]['listen'], '127.0.0.1')
-        flags = chrome_args('chrome.exe')
+        flags = chrome_args('chrome.exe', port=23456)
         self.assertIn('--proxy-bypass-list=<-loopback>', flags)
         self.assertIn('--force-webrtc-ip-handling-policy=disable_non_proxied_udp', flags)
 
@@ -117,6 +117,36 @@ class Origin(BaseHTTPRequestHandler):
 
 @unittest.skipUnless((ROOT / 'bin/sing-box.exe').exists(), 'Run prepare.py first')
 class CoreTests(unittest.TestCase):
+    def test_automatic_ports_coexist_with_an_occupied_legacy_port_and_restart(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory, socket.socket() as occupied:
+            # If another user already owns it, leave their listener alone.
+            try:
+                occupied.bind(('127.0.0.1', 17892))
+                occupied.listen()
+            except OSError:
+                pass
+            first = Core(data=Path(directory) / 'first')
+            second = Core(data=Path(directory) / 'second')
+            try:
+                first.start(parse_link(HY2), 'all')
+                second.start(parse_link(HY2), 'all')
+                self.assertNotEqual(first.port, second.port)
+                self.assertNotIn(17892, (first.port, second.port))
+                self.assertTrue(first.alive() and second.alive())
+                first.stop()
+                self.assertIsNone(first.port)
+                self.assertTrue(second.alive())
+                with socket.create_connection(('127.0.0.1', second.port), timeout=2) as probe:
+                    probe.sendall(b'\x05\x01\x00')
+                    self.assertEqual(probe.recv(2), b'\x05\x00')
+                first.start(parse_link(HY2), 'all')
+                self.assertNotEqual(first.port, second.port)
+                self.assertEqual(first.port, first.diagnostics.listener_port())
+                self.assertFalse(list(Path(directory).rglob('core-*.json')))
+            finally:
+                first.stop()
+                second.stop()
+
     def test_config_validation(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:
             path = Path(directory) / 'check.json'
