@@ -55,7 +55,7 @@ image.onload = () => {
     context.beginPath();
     context.arc(size/2, size/2, size/2, 0, Math.PI*2);
     context.clip();
-    context.fillStyle = '#242323';
+    context.fillStyle = '#008AE0';
     context.fillRect(0, 0, size, size);
     // Leave 10% of the diameter on each side inside the circular background.
     const scale = size * .8 / Math.max(image.naturalWidth, image.naturalHeight);
@@ -65,8 +65,8 @@ image.onload = () => {
     for (const [x,y] of [[0,0],[size-1,0],[0,size-1],[size-1,size-1]]) {
       if (context.getImageData(x,y,1,1).data[3] !== 0) throw Error('Icon corners must be transparent');
     }
-    if ([...context.getImageData(size/2,size/2,1,1).data].join(',') !== '36,35,35,255') {
-      throw Error('Icon center must match the extension background');
+    if ([...context.getImageData(size/2,size/2,1,1).data].join(',') !== '0,138,224,255') {
+      throw Error('Icon center must be #008AE0');
     }
     results[size] = canvas.toDataURL('image/png').split(',')[1];
   }
@@ -102,7 +102,7 @@ image.src = DATA_URL;
         ico.extend(struct.pack('<BBBBHHII', encoded_size, encoded_size, 0, 0, 1, 32, len(png), offset))
         offset += len(png)
     (ICONS / 'app.ico').write_bytes(ico + b''.join(pngs))
-    print('Rendered round #242323 icons with 10% padding; transparent corners verified; ICO sizes:', ', '.join(map(str, SIZES)))
+    print('Rendered white logo on round #008AE0 background with 10% padding; transparent corners verified; ICO sizes:', ', '.join(map(str, SIZES)))
 
 
 if __name__ == '__main__':
