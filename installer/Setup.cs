@@ -135,7 +135,7 @@ internal sealed class SetupForm : Form
         status.Location = new Point(32, 150); status.Size = new Size(475, 64);
         progress.Location = new Point(32, 220); progress.Size = new Size(475, 16);
         progress.Style = ProgressBarStyle.Continuous;
-        openChrome.Text = "Открыть Chrome и папку расширения после установки";
+        openChrome.Text = "Открыть расширения Chrome и папку установки";
         openChrome.Location = new Point(32, 250); openChrome.Size = new Size(475, 32); openChrome.Checked = true;
         action.Text = "Установить"; action.Location = new Point(340, 305); action.Size = new Size(167, 40);
         action.FlatStyle = FlatStyle.Flat; action.BackColor = Color.FromArgb(0, 141, 221); action.FlatAppearance.BorderSize = 0;
