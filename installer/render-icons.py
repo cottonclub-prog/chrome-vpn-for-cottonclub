@@ -57,7 +57,8 @@ image.onload = () => {
     context.clip();
     context.fillStyle = '#242323';
     context.fillRect(0, 0, size, size);
-    const scale = size / Math.max(image.naturalWidth, image.naturalHeight);
+    // Leave 10% of the diameter on each side inside the circular background.
+    const scale = size * .8 / Math.max(image.naturalWidth, image.naturalHeight);
     const width = image.naturalWidth * scale, height = image.naturalHeight * scale;
     context.drawImage(image, (size-width)/2, (size-height)/2, width, height);
     context.restore();
@@ -101,7 +102,7 @@ image.src = DATA_URL;
         ico.extend(struct.pack('<BBBBHHII', encoded_size, encoded_size, 0, 0, 1, 32, len(png), offset))
         offset += len(png)
     (ICONS / 'app.ico').write_bytes(ico + b''.join(pngs))
-    print('Rendered round #242323 icons; transparent corners verified; ICO sizes:', ', '.join(map(str, SIZES)))
+    print('Rendered round #242323 icons with 10% padding; transparent corners verified; ICO sizes:', ', '.join(map(str, SIZES)))
 
 
 if __name__ == '__main__':
