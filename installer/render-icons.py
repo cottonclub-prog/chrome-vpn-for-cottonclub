@@ -42,6 +42,8 @@ def main():
         raise RuntimeError('Google Chrome is required to render the logo.')
     svg = (ICONS / 'logo.svg').read_bytes()
     assert ET.fromstring(svg).tag == '{http://www.w3.org/2000/svg}svg'
+    # Keep the blue source logo for the popup; render white app icons in memory.
+    svg = svg.replace(b'fill="#008AE0"', b'fill="#FFFFFF"')
     data_url = 'data:image/svg+xml;base64,' + base64.b64encode(svg).decode('ascii')
     page = '''<!doctype html><meta charset="utf-8"><pre id="result"></pre><script>
 const image = new Image();
