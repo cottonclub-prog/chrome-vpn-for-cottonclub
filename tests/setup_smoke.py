@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 import subprocess
+import struct
 import xml.etree.ElementTree as ET
 import pefile
 
@@ -24,8 +25,22 @@ with pefile.PE(str(setup)) as pe:
                     manifest = ET.fromstring(pe.get_data(data.OffsetToData, data.Size).rstrip(b'\0'))
                     levels += [element.get('level') for element in manifest.findall('.//{urn:schemas-microsoft-com:asm.v3}requestedExecutionLevel')]
     assert levels == ['asInvoker'], levels
-    expected_icons = {(ROOT / 'CottonClub VPN for Chrome/icons' / f'icon-{size}.png').read_bytes()
-                      for size in (16, 32, 48, 128)}
+    ico = (ROOT / 'CottonClub VPN for Chrome/icons/app.ico').read_bytes()
+    reserved, kind, count = struct.unpack_from('<HHH', ico)
+    assert (reserved, kind) == (0, 1)
+    expected_icons, icon_sizes = set(), set()
+    for index in range(count):
+        width, height, _, _, _, _, length, offset = struct.unpack_from('<BBBBHHII', ico, 6 + 16 * index)
+        size = width or 256
+        assert size == (height or 256)
+        png = ico[offset:offset + length]
+        assert png[:8] == b'\x89PNG\r\n\x1a\n'
+        assert struct.unpack('>II', png[16:24]) == (size, size)
+        expected_icons.add(png)
+        icon_sizes.add(size)
+        if size in (16, 32, 48, 128):
+            assert png == (ROOT / 'CottonClub VPN for Chrome/icons' / f'icon-{size}.png').read_bytes()
+    assert {16, 20, 24, 32, 40, 48, 64, 96, 128, 256} == icon_sizes
     assert embedded_icons == expected_icons, 'EXE icon resources differ from the extension logo'
 result = subprocess.run([str(setup), '--verify-only'], timeout=180, creationflags=0x08000000)
 assert result.returncode == 0, 'EXE embedded payload verification failed'

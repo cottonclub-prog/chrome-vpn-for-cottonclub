@@ -11,7 +11,8 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 ICONS = ROOT / 'CottonClub VPN for Chrome/icons'
-SIZES = (16, 32, 48, 128)
+SIZES = (16, 20, 24, 32, 40, 48, 64, 96, 128, 256)
+PNG_SIZES = (16, 32, 48, 128)
 
 
 class ResultParser(HTMLParser):
@@ -49,9 +50,12 @@ image.onload = () => {
   for (const size of SIZES) {
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = size;
-    const scale = size * .9 / Math.max(image.naturalWidth, image.naturalHeight);
+    const context = canvas.getContext('2d');
+    context.fillStyle = '#242323';
+    context.fillRect(0, 0, size, size);
+    const scale = size / Math.max(image.naturalWidth, image.naturalHeight);
     const width = image.naturalWidth * scale, height = image.naturalHeight * scale;
-    canvas.getContext('2d').drawImage(image, (size-width)/2, (size-height)/2, width, height);
+    context.drawImage(image, (size-width)/2, (size-height)/2, width, height);
     results[size] = canvas.toDataURL('image/png').split(',')[1];
   }
   document.getElementById('result').textContent = JSON.stringify(results);
@@ -76,15 +80,17 @@ image.src = DATA_URL;
         png = base64.b64decode(images[str(size)], validate=True)
         assert png[:8] == b'\x89PNG\r\n\x1a\n'
         assert struct.unpack('>II', png[16:24]) == (size, size)
-        (ICONS / f'icon-{size}.png').write_bytes(png)
+        if size in PNG_SIZES:
+            (ICONS / f'icon-{size}.png').write_bytes(png)
         pngs.append(png)
     offset = 6 + 16 * len(SIZES)
     ico = bytearray(struct.pack('<HHH', 0, 1, len(SIZES)))
     for size, png in zip(SIZES, pngs):
-        ico.extend(struct.pack('<BBBBHHII', size, size, 0, 0, 1, 32, len(png), offset))
+        encoded_size = size if size < 256 else 0
+        ico.extend(struct.pack('<BBBBHHII', encoded_size, encoded_size, 0, 0, 1, 32, len(png), offset))
         offset += len(png)
     (ICONS / 'app.ico').write_bytes(ico + b''.join(pngs))
-    print('Rendered transparent CottonClub PNG icons and app.ico:', ', '.join(map(str, SIZES)))
+    print('Rendered full-size CottonClub icons on #242323; ICO sizes:', ', '.join(map(str, SIZES)))
 
 
 if __name__ == '__main__':
