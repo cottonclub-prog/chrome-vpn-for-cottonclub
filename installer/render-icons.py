@@ -51,11 +51,22 @@ image.onload = () => {
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = size;
     const context = canvas.getContext('2d');
+    context.save();
+    context.beginPath();
+    context.arc(size/2, size/2, size/2, 0, Math.PI*2);
+    context.clip();
     context.fillStyle = '#242323';
     context.fillRect(0, 0, size, size);
     const scale = size / Math.max(image.naturalWidth, image.naturalHeight);
     const width = image.naturalWidth * scale, height = image.naturalHeight * scale;
     context.drawImage(image, (size-width)/2, (size-height)/2, width, height);
+    context.restore();
+    for (const [x,y] of [[0,0],[size-1,0],[0,size-1],[size-1,size-1]]) {
+      if (context.getImageData(x,y,1,1).data[3] !== 0) throw Error('Icon corners must be transparent');
+    }
+    if ([...context.getImageData(size/2,size/2,1,1).data].join(',') !== '36,35,35,255') {
+      throw Error('Icon center must match the extension background');
+    }
     results[size] = canvas.toDataURL('image/png').split(',')[1];
   }
   document.getElementById('result').textContent = JSON.stringify(results);
@@ -90,7 +101,7 @@ image.src = DATA_URL;
         ico.extend(struct.pack('<BBBBHHII', encoded_size, encoded_size, 0, 0, 1, 32, len(png), offset))
         offset += len(png)
     (ICONS / 'app.ico').write_bytes(ico + b''.join(pngs))
-    print('Rendered full-size CottonClub icons on #242323; ICO sizes:', ', '.join(map(str, SIZES)))
+    print('Rendered round #242323 icons; transparent corners verified; ICO sizes:', ', '.join(map(str, SIZES)))
 
 
 if __name__ == '__main__':
