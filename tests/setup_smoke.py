@@ -10,7 +10,13 @@ version = json.loads((ROOT / 'CottonClub VPN for Chrome/manifest.json').read_tex
 setup = ROOT / 'dist' / f'cottonclub-vpn-for-chrome-setup-{version}.exe'
 with pefile.PE(str(setup)) as pe:
     levels = []
+    embedded_icons = set()
     for resource in pe.DIRECTORY_ENTRY_RESOURCE.entries:
+        if resource.id == 3:  # RT_ICON: verify the EXE contains the actual new logo.
+            for name in resource.directory.entries:
+                for language in name.directory.entries:
+                    data = language.data.struct
+                    embedded_icons.add(pe.get_data(data.OffsetToData, data.Size))
         if resource.id == 24:
             for name in resource.directory.entries:
                 for language in name.directory.entries:
@@ -18,6 +24,9 @@ with pefile.PE(str(setup)) as pe:
                     manifest = ET.fromstring(pe.get_data(data.OffsetToData, data.Size).rstrip(b'\0'))
                     levels += [element.get('level') for element in manifest.findall('.//{urn:schemas-microsoft-com:asm.v3}requestedExecutionLevel')]
     assert levels == ['asInvoker'], levels
+    expected_icons = {(ROOT / 'CottonClub VPN for Chrome/icons' / f'icon-{size}.png').read_bytes()
+                      for size in (16, 32, 48, 128)}
+    assert embedded_icons == expected_icons, 'EXE icon resources differ from the extension logo'
 result = subprocess.run([str(setup), '--verify-only'], timeout=180, creationflags=0x08000000)
 assert result.returncode == 0, 'EXE embedded payload verification failed'
 identity = json.loads((ROOT / 'installer/crx-identity.json').read_text(encoding='utf-8'))

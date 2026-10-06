@@ -28,20 +28,7 @@ if ($LASTEXITCODE) { throw 'CRX signature or identity verification failed.' }
 $updates = '<?xml version="1.0" encoding="UTF-8"?><gupdate xmlns="http://www.google.com/update2/response" protocol="2.0"><app appid="' + $identity.id + '"><updatecheck codebase="https://github.com/cottonclub-prog/cottonclub-vpn-for-chrome/releases/download/v' + $metadata.version + '/cottonclub-vpn-for-chrome.crx" version="' + $metadata.version + '" /></app></gupdate>'
 [IO.File]::WriteAllText((Join-Path $PSScriptRoot 'dist/updates.xml'), $updates, [Text.UTF8Encoding]::new($false))
 [IO.File]::WriteAllText((Join-Path $stage 'payload.sha256'), $metadata.sha256, [Text.UTF8Encoding]::new($false))
-$iconPath = Join-Path $stage 'setup.ico'
-$iconStream = [IO.File]::Create($iconPath)
-$writer = [IO.BinaryWriter]::new($iconStream)
-try {
-    $writer.Write([uint16]0); $writer.Write([uint16]1); $writer.Write([uint16]4)
-    $offset = 6 + 4 * 16
-    foreach ($size in @(16,32,48,128)) {
-        $bytes = [IO.File]::ReadAllBytes((Join-Path $PSScriptRoot "CottonClub VPN for Chrome/icons/icon-$size.png"))
-        $writer.Write([byte]$size); $writer.Write([byte]$size); $writer.Write([byte]0); $writer.Write([byte]0)
-        $writer.Write([uint16]1); $writer.Write([uint16]32); $writer.Write([uint32]$bytes.Length); $writer.Write([uint32]$offset)
-        $offset += $bytes.Length
-    }
-    foreach ($size in @(16,32,48,128)) { $writer.Write([IO.File]::ReadAllBytes((Join-Path $PSScriptRoot "CottonClub VPN for Chrome/icons/icon-$size.png"))) }
-} finally { $writer.Dispose(); $iconStream.Dispose() }
+$iconPath = Join-Path $PSScriptRoot 'CottonClub VPN for Chrome/icons/app.ico'
 $versionSource = Join-Path $stage 'AssemblyInfo.cs'
 [IO.File]::WriteAllText($versionSource, ('[assembly:System.Reflection.AssemblyTitle("CottonClub VPN for Chrome Setup")][assembly:System.Reflection.AssemblyFileVersion("' + $metadata.version + '.0")]'), [Text.UTF8Encoding]::new($false))
 $compiler = Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'

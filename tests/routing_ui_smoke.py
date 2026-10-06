@@ -12,6 +12,7 @@ fixture = ROOT / 'build' / ('popup-ui-' + uuid.uuid4().hex)
 fixture.mkdir(parents=True)
 for name in ('popup.css', 'popup.js', 'routing-defaults.json'):
     shutil.copyfile(ROOT / 'CottonClub VPN for Chrome' / name, fixture / name)
+shutil.copytree(ROOT / 'CottonClub VPN for Chrome/icons', fixture / 'icons')
 defaults = json.loads((fixture / 'routing-defaults.json').read_text(encoding='utf-8'))
 script = r'''const initialRules = DEFAULTS;
 const state = {mode:'off',nodes:[],selected:0,routingMode:'ru-direct',routingRules:structuredClone(initialRules),currentVersion:'1.4.0',subscription:'https://example.com/sub'};

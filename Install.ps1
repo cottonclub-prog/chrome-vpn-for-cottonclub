@@ -144,6 +144,7 @@ try {
             $uninstall.SetValue('DisplayName', 'CottonClub VPN for Chrome')
             $uninstall.SetValue('DisplayVersion', $manifest.version)
             $uninstall.SetValue('InstallLocation', $base)
+            $uninstall.SetValue('DisplayIcon', (Join-Path $base 'CottonClub VPN for Chrome/icons/app.ico'))
             $uninstall.SetValue('UninstallString', 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $base 'Uninstall.ps1') + '"')
         } finally { $uninstall.Close() }
         $hkcu.DeleteSubKeyTree('Software\Microsoft\Windows\CurrentVersion\Uninstall\CottonClubHysteria2', $false)
@@ -157,6 +158,7 @@ try {
         $shortcut.Arguments = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + (Join-Path $base 'Launch.ps1') + '"'
         $shortcut.WindowStyle = 7
         $shortcut.WorkingDirectory = $base
+        $shortcut.IconLocation = (Join-Path $base 'CottonClub VPN for Chrome/icons/app.ico')
         $shortcut.Save()
     }
     Remove-PreviousApplicationFiles $base $parent
