@@ -180,4 +180,5 @@ html,body{width:400px;height:600px;min-height:0;margin:0;background:#242323;disp
 .update-actions{display:grid;gap:8px;margin-top:10px}.update-actions .quiet{text-align:left}
 .help-link{color:#71caff;font-size:11px}.power:disabled{opacity:.65;transform:none;cursor:wait}
 
-.connection-message{flex-shrink:0;max-height:52px;overflow:auto;margin:0;padding:6px 20px;border-top:1px solid #393939}
+.connection-message{flex-shrink:0;max-height:52px;overflow:auto;margin:0;padding:6px 20px;border-top:1px solid #393939;white-space:pre-line}
+.connection-message[data-kind="error"]{max-height:128px;color:#ffb4b4;padding-top:10px;padding-bottom:10px}

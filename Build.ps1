@@ -29,7 +29,7 @@ try {
     # Explicit allowlist also excludes stale binaries from previous builds.
     Copy-Item bin/sing-box.exe,bin/LICENSE-sing-box.txt,bin/SOURCE.txt $coreDirectory
     Copy-Item (Join-Path $PSScriptRoot 'CottonClub VPN for Chrome') $package -Recurse
-    foreach ($file in @('Install.cmd','Install.ps1','Launch.ps1','Uninstall.cmd','Uninstall.ps1','Bootstrap.ps1','Update.ps1','README.md')) {
+    foreach ($file in @('Install.cmd','Install.ps1','Launch.ps1','Uninstall.cmd','Uninstall.ps1','Bootstrap.ps1','Update.ps1','Diagnose.cmd','Diagnose.ps1','README.md')) {
         Copy-Item (Join-Path $PSScriptRoot $file) $package
     }
     $hashes = @(Get-ChildItem $package -File -Recurse | ForEach-Object {

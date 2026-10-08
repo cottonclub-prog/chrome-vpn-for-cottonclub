@@ -39,6 +39,7 @@ function global:Read-Host {
     report = result.stdout.decode(errors='replace')
     assert result.returncode == 0, result.stderr
     assert 'Link parsed by the installed helper: OK' in report, report
+    assert 'Installed helper HTTPS check: SOCKS_CONNECT_TIMEOUT' in report, report
     assert 'Diagnostic core listener: OK' in report, report
     assert 'ipify via same core: SOCKS_CONNECT/' in report, report
     assert 'Cloudflare via same core: SOCKS_CONNECT/' in report, report

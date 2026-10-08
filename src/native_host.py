@@ -119,7 +119,15 @@ class Host:
                         if not isinstance(hint, str):
                             hint = ''
                         route = 'По правилам' if mode == 'ru-direct' else 'Всё через VPN'
-                        raise RuntimeError(f'{protocol}, {route}: {reason} {hint}'.strip()) from None
+                        code = error.code if isinstance(error, ConnectionCheckError) else None
+                        stage = error.stage if isinstance(error, ConnectionCheckError) else None
+                        # Core dial errors explain SOCKS establishment. They must
+                        # not be presented as the cause of a later HTTPS failure.
+                        if stage not in (None, 'LOCAL_PROXY', 'SOCKS_GREETING', 'SOCKS_CONNECT'):
+                            hint = ''
+                        message = f'{protocol}, {route}:\n{reason}' + (f'\n{hint}' if hint else '')
+                        raise ConnectionCheckError(message,
+                                                   code=code, stage=stage) from None
                     self.connected = True
                     self.routing_mode = mode
                     self.selected = index
@@ -162,6 +170,9 @@ class Host:
                     response = {'id': identifier, 'ok': True, 'result': value}
                 except (RuntimeError, SubscriptionError) as exc:
                     response = {'id': identifier, 'ok': False, 'error': str(exc)}
+                    if isinstance(exc, ConnectionCheckError) and exc.code:
+                        response['errorCode'] = exc.code
+                        response['errorStage'] = exc.stage
                 except Exception:
                     response = {'id': identifier, 'ok': False, 'error': 'Ошибка помощника. Перезапустите расширение.'}
                 self.send(response)

@@ -120,6 +120,19 @@ namespace CottonClubDiagnostic {
         }
         public static string NativeCategory(string error) {
             string text = error ?? "";
+            foreach (string stage in new[] { "LOCAL_PROXY", "SOCKS_GREETING", "SOCKS_CONNECT", "HTTPS_TLS", "HTTP_HEADERS", "HTTP_BODY" }) {
+                foreach (string outcome in new[] { "TIMEOUT", "CLOSED", "REFUSED" }) {
+                    string code = stage + "_" + outcome;
+                    if (text.Contains("[" + code + "]")) return code;
+                }
+            }
+            foreach (string code in new[] { "HTTPS_CERTIFICATE", "HTTPS_TLS_ERROR", "HTTP_STATUS", "HTTP_INVALID_IP", "HTTP_INCOMPLETE", "SOCKS_REPLY_INVALID", "SOCKS_GREETING_INVALID", "LOCAL_PROXY_PORT", "OS_NETWORK_PERMISSION" }) {
+                if (text.Contains("[" + code + "]")) return code;
+            }
+            for (int reply = 1; reply <= 255; reply++) {
+                string code = "SOCKS_REPLY_" + reply;
+                if (text.Contains("[" + code + "]")) return code;
+            }
             if (text.Contains("\u0418\u0441\u0442\u0435\u043a\u043b\u043e \u0432\u0440\u0435\u043c\u044f \u043e\u0436\u0438\u0434\u0430\u043d\u0438\u044f")) return "HTTPS_TIMEOUT";
             if (text.Contains("TLS-\u0441\u0435\u0440\u0442\u0438\u0444\u0438\u043a\u0430\u0442")) return "HTTPS_CERTIFICATE";
             if (text.Contains("\u041b\u043e\u043a\u0430\u043b\u044c\u043d\u044b\u0439 \u043f\u0440\u043e\u043a\u0441\u0438")) return "LOCAL_PROXY_START";
@@ -274,7 +287,11 @@ function Get-DiagnosticHost([string]$Directory) {
         }
         } finally { $registry.Close() }
     }
-    if (-not $hostPath) { $hostPath = Join-Path $base 'host\cottonclub-vpn-for-chrome-host.exe' }
+    # A stale registry path must not hide the helper present in the current
+    # user's standard installation folder.
+    if (-not $hostPath -or -not (Test-Path -LiteralPath $hostPath -PathType Leaf)) {
+        $hostPath = Join-Path $base 'host\cottonclub-vpn-for-chrome-host.exe'
+    }
     if (-not (Test-Path -LiteralPath $hostPath -PathType Leaf)) { throw 'HOST_NOT_FOUND' }
     $hostPath = [IO.Path]::GetFullPath($hostPath)
     if ([IO.Path]::GetFileName($hostPath) -cne 'cottonclub-vpn-for-chrome-host.exe') { throw 'HOST_NOT_RECOGNIZED' }

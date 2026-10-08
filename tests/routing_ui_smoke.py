@@ -62,7 +62,11 @@ window.addEventListener('load',async()=>{
   screen('rules');openEditor(-1);$('address-trigger').click();addressOptions[0].dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));assert(!$('editor').hidden&&$('address-options').hidden,'escape closes dropdown only');
   closeEditor();assert($('app').scrollWidth<=$('app').clientWidth,'no horizontal overflow');
   const note=$('rule-note').getBoundingClientRect();assert(note.bottom<=document.querySelector('.footer').getBoundingClientRect().top,'save note fits');
-  screen('settings');document.body.dataset.testResult='passed';
+  state.mode='blocked';state.message='Hysteria 2/sing-box, По правилам:\nПрокси не подтвердил соединение. [SOCKS_CONNECT_TIMEOUT]\n'+'Ядро не дождалось ответа сети. Точная причина не подтверждена. [NETWORK_TIMEOUT] '.repeat(4);renderState(structuredClone(state));screen('vpn');
+  const message=$('status');assert(message.dataset.kind==='error','error presentation');assert(getComputedStyle(message).whiteSpace==='pre-line','failure stages on separate lines');
+  assert(message.getBoundingClientRect().height<=129,'bounded error panel');assert(message.scrollHeight>message.clientHeight,'long error is scrollable');
+  message.scrollTop=message.scrollHeight;assert(message.scrollTop>0,'all error text reachable');assert(message.getBoundingClientRect().bottom<=document.querySelector('.footer').getBoundingClientRect().top+1,'footer remains visible');
+  assert($('app').scrollWidth<=$('app').clientWidth,'error codes fit popup');document.body.dataset.testResult='passed';
  }catch(e){document.body.dataset.testResult=e.stack;}
 });
 '''.replace('DEFAULTS',json.dumps(defaults))

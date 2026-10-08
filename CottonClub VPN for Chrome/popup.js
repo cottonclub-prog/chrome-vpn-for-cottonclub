@@ -108,6 +108,7 @@ function renderState(state) {
   });
   for (const id of ['save-rules','add-rule','reset-rules']) $(id).disabled = !!busy || !rulesLoaded || (id === 'save-rules' && connected);
   $('status').textContent = state.message || '';
+  $('status').dataset.kind = blocked ? 'error' : 'info';
   $('status').hidden = !state.message;
   $('version').textContent = state.update?.available ? `Доступна ${state.update.version}` : `Версия ${state.currentVersion || chrome.runtime.getManifest().version}`;
   document.querySelectorAll('.app-version').forEach(e => e.textContent = state.currentVersion || chrome.runtime.getManifest().version);

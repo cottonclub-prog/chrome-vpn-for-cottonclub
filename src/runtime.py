@@ -12,7 +12,8 @@ import time
 import threading
 
 from subscription import make_config
-from diagnostics import CoreDiagnostics, ConnectionCheckError, check_error_message
+from diagnostics import CoreDiagnostics
+from connection_probe import check_connection
 from app_paths import APP_DIRECTORY
 
 CREATE_NO_WINDOW = 0x08000000 if os.name == 'nt' else 0
@@ -158,7 +159,8 @@ class Core:
         return self.process is not None and self.process.poll() is None
 
     def connection_hint(self):
-        return self.diagnostics.hint()
+        # The log consumer can trail the SOCKS error by a few milliseconds.
+        return self.diagnostics.hint(wait=.25)
 
     def stop(self):
         self.port = None
@@ -180,18 +182,3 @@ class Core:
         if self.config_path:
             self.config_path.unlink(missing_ok=True)
             self.config_path = None
-
-
-def check_connection(port):
-    # requests must use the local proxy explicitly, with no direct fallback.
-    import requests
-    with requests.Session() as session:
-        session.trust_env = False
-        try:
-            response = session.get('https://api.ipify.org',
-                                   proxies={'https': f'socks5h://127.0.0.1:{port}'}, timeout=(8, 15))
-            response.raise_for_status()
-            import ipaddress
-            return str(ipaddress.ip_address(response.text.strip()))
-        except (requests.RequestException, ValueError) as error:
-            raise ConnectionCheckError(check_error_message(error)) from None

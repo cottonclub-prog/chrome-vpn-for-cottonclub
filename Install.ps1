@@ -63,6 +63,9 @@ function Install-ApplicationFiles([string]$Package, [string]$Parent) {
     Copy-Item -LiteralPath (Join-Path $Package 'CottonClub VPN for Chrome') -Destination $base -Recurse -Force
     [IO.File]::WriteAllText((Join-Path $base 'CottonClub VPN for Chrome/managed-install.json'), '{"managed":true}', [Text.UTF8Encoding]::new($false))
     foreach ($file in @('Launch.ps1','Uninstall.cmd','Uninstall.ps1','Bootstrap.ps1','Update.ps1','README.md')) { Copy-Item -LiteralPath (Join-Path $Package $file) -Destination $base -Force }
+    foreach ($file in @('Diagnose.cmd','Diagnose.ps1')) {
+        if (Test-Path -LiteralPath (Join-Path $Package $file)) { Copy-Item -LiteralPath (Join-Path $Package $file) -Destination $base -Force }
+    }
     return $base
 }
 function Remove-PreviousApplicationFiles([string]$Base, [string]$Parent) {

@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 
 from native_host import Host, read_message, MAX_MESSAGE
 from subscription import parse_link, make_config
+from diagnostics import ConnectionCheckError
 
 PASSWORD = 'not-a-real-password'
 
@@ -17,6 +18,23 @@ def frame(message):
 
 
 class NativeHostTests(unittest.TestCase):
+    def test_probe_stage_and_code_reach_extension_without_private_exception_text(self):
+        output, core = io.BytesIO(), Mock()
+        core.connection_hint.return_value = 'VPN-сервер отклонил авторизацию. [HYSTERIA_AUTHENTICATION]'
+        host = Host(output, core=core)
+        host.nodes = [parse_link(f'hy2://{PASSWORD}@127.0.0.1:443?sni=localhost')]
+        error = ConnectionCheckError('Не получен ответ. [SOCKS_CONNECT_TIMEOUT]',
+                                     code='SOCKS_CONNECT_TIMEOUT', stage='SOCKS_CONNECT')
+        with patch('native_host.check_connection', side_effect=error):
+            host.run(io.BytesIO(frame({'id': 1, 'action': 'connect', 'index': 0})))
+        output.seek(0)
+        message = read_message(output)
+        self.assertFalse(message['ok'])
+        self.assertEqual(message['errorCode'], 'SOCKS_CONNECT_TIMEOUT')
+        self.assertEqual(message['errorStage'], 'SOCKS_CONNECT')
+        self.assertIn('[HYSTERIA_AUTHENTICATION]', message['error'])
+        self.assertNotIn(PASSWORD, json.dumps(message))
+
     def test_frames_and_truncation(self):
         data = io.BytesIO(frame({'id': 1}) + frame({'id': 2}))
         self.assertEqual(read_message(data), {'id': 1})
